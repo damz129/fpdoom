@@ -54,114 +54,115 @@ All feature phone LCDs I've seen (except GC9308) are vertical, if you have a pho
 
 ### List of tested models
 
-|  # | Name                    |   Chip   |       LCD         | Boot Key   |
-|----|-------------------------|----------|-------------------|------------|
-|  1 | F+ F256                 | SC6531E  | 240x320 GC9306    | *          |
-|  2 | Digma Linx B241         | SC6531E  | 240x320 ST7789    | center     |
-|  3 | F+ Ezzy 4               | SC6531E  | 128x160 GC9106    | 1          |
-|  4 | Joy's S21               | SC6531   | 128x160 GC9108    | 0          |
-|  5 | Vertex M115             | SC6531   | 128x128 ST7735S   | up         |
-|  6 | Vertex С323             | SC6531   | 128x160 GC9106    | 0          |
-|  7 | Nobby 170B              | SC6531E  | 128x160 GC9106    | #          |
-|  8 | Smart Watch DZ09        | SC6531   | 240x240 GC9307    | none       |
-|  9 | Nokia 105 (TA-1174)     | SC6531E  | 128x160 ST7735    | 7          |
-| 10 | BQ 3586 Tank Max        | SC6531E  | 320x480 R61529    | #          |
-| 11 | Samsung B310E           | SC6530C  | 128x160 ST7735    | center     |
-| 12 | Fontel FP200            | SC6531   | 128x160 GC9106    | left soft  |
-| 13 | Vertex D514             | SC6531E  | 240x320 ???       | center     |
-| 14 | Fly TS114               | SC6531E  | 240x320 GC9306    | right soft |
-| 15 | Energizer E12           | SC6531E  | 128x160 GC9106    | 1          |
-| 16 | Itel it5626             | SC6531   | 240x320 GC9307    | left soft  |
-| 17 | Sunwind C2401           | SC6531E  | 240x320 ST7789    | *          |
-| 18 | DEXP SD2810             | SC6531E  | 240x320 NV3029G   | 2          |
-| 19 | Nokia 6310 (TA-1400)    | SC6531E  | 240x320 ???       | right soft |
-| 20 | YX Q5 Kids Camera       | SC6531   | 128x160 NV3023    | shutter    |
-| 21 | Nomi i184               | SC6531   | 128x160 GC9102    | *          |
-| 22 | Sigma IO67              | SC6531   | 240x320 GC9305    | dial       |
-| 23 | Samsung GT-E1272        | SC6531E  | 128x160 ST7735P   | 2          |
-| 24 | Samsung GT-E1272        | SC6530   | 128x160 ST7735    | center     |
-| 25 | F+ F197                 | SC6531E  | 128x160 NV3023    | 1          |
-| 26 | Alcatel 2003D           | SC6531E  | 240x320 ST7789    | dial       |
-| 27 | Alcatel 2019G           | SC6531E  | 320x240 GC9308    | dial       |
-| 28 | Texet TM-122            | SC6531   | 128x160 GC9106    | 0          |
-| 29 | Texet TM-130            | SC6531   | 128x160 GC9106    | 0          |
-| 30 | Olmio E29               | SC6531E  | 240x320 GC9300    | left soft  |
-| 31 | Texet TM-B307           | SC6531E  | 240x320 ST7789    | 2          |
-| 32 | Olmio E35               | SC6531E  | 320x480 ILI9481   | 0          |
-| 33 | Texet TM-D324           | SC6531E  | 320x480 NT35310   | 0          |
-| 34 | Texet TM-302            | SC6531   | 240x320 ST7789    | 0          |
-| 35 | Strike A13              | SC6531   | 128x160 GC9106    | left soft  |
-| 36 | Olmio A25               | SC6531E  | 240x320 ILI9328   | dial       |
-| 37 | Tokky FP50              | SC6531   | 128x160 GC9106    | *          |
-| 38 | Texet TM-D328           | SC6531E  | 240x320 GC9306    | right      |
-| 39 | Texet TM-321            | SC6531E  | 240x400 SPFD5420A | 1          |
-| 40 | Texet TM-308            | SC6531E  | 240x320 S6D04H0A  | 0          |
-| 41 | Texet TM-B316           | SC6531E  | 128x160 ST7735P   | 9          |
-| 42 | Texet TM-B323           | SC6531E  | 176x220 ILI9225G  | 9          |
-| 43 | Texet TM-B213           | SC6531E  | 240x320 GC9300    | left soft  |
-| 44 | Olmio A15               | SC6531E  | 128x160 ST7735S   | left soft  |
-| 45 | Texet TM-B208           | SC6531E  | 128x160 GC9106    | left soft  |
-| 46 | Olmio X04               | SC6531   | 240x320 ILI9341   | 0          |
-| 47 | Tokky FP10              | SC6531   | 128x64  ST7567A   | up         |
-| 48 | Fontel FP100            | SC6531   | 128x64  ST7567A   | all d-pad  |
-| 49 | Joy's S16               | SC6530C  |  96x68  HX1230    | up         |
-| 50 | Joy's S19               | SC6531   | 128x64  ST7565R   | 3          |
-| 51 | Vertex M114             | SC6530C  |  96x68  HX1230    | up         |
-| 52 | LONG-CZ J9              | SC6531E  |  64x48  SSD1306   | right soft |
-| 53 | Digma Linx A106         | SC6530C  |  96x68  HX1230    | up         |
-| 54 | Prestigio Wize J1       | SC6531E  | 128x160 GC9106    | 9          |
-| 55 | Texet TM-B322           | SC6531   | 128x64  ST7567A   | 0          |
-| 56 | Itel it5615             | SC6531   | 240x320 ST7789    | left soft  |
-| 57 | Jinga Simple F200n      | SC6531   | 128x160 GC9102    | left soft  |
-| 58 | Jinga Simple F170       | SC6531   | 128x160 GC9102    | right soft |
-| 59 | Nokia 105 (TA-1203)     | SC6531E  | 128x160 ST7735    | 7          |
-| 60 | Nokia 110 (TA-1192)     | SC6531E  | 128x160 ST7735    | right soft |
-| 61 | Bjorn P220              | SC6531   | 128x160 NV3021    | left soft  |
-| 62 | Cavion Base 1.7         | SC6531   | 128x160 NV3021    | left soft  |
-| 63 | Nokia 105 (TA-1575)     | SC6531E  | 128x160 ST7735    | *          |
-| 64 | Texet TM-408            | SC6531E  | 240x320 GC9307    | #          |
-| 65 | CHAKEYAKE T190          | UMS9117  | 128x160 GC9106    | *          |
-| 66 | Inoi 140 4G             | UMS9117  | 128x160 ST7735S   | *          |
-| 67 | BQ 1800L One            | UMS9117  | 128x160 GC9106    | 4          |
-| 68 | IPRO K6                 | UMS9117  | 240x320 GC9306    | *          |
-| 69 | Inoi 284 Flip           | UMS9117  | 240x320 GC9306    | 2          |
-| 70 | i-TOP P100              | UMS9117  | 240x320 GC9307    | dial       |
-| 71 | Nokia 110 4G (TA-1543)  | UMS9117  | 128x160 ST7735P3  | *          |
-| 72 | Nokia 106 4G (TA-1553)  | UMS9117  | 128x160 ST7735P3  | *          |
-| 73 | Nokia 3210 4G (TA-1618) | UMS9117  | 240x320 ST7789P3  | *          |
-| 74 | Philips Xenium E6500    | UMS9117  | 240x320 NV3030B   | 2          |
-| 75 | Itel it2160             | SC6531E  | 128x160 ST7735S   | left soft  |
-| 76 | Alcatel 2040D           | SC6531   | 240x320 ILI9341   | dial       |
-| 77 | Alcatel 2051X/2051D     | SC6531   | 240x320 GC9305    | dial       |
-| 78 | HMD 2660 Flip (TA-1711) | UMS9117  | 240x320 GC9307    | *          |
-| 79 | IPRO A1 Mini            | SC6531E  | 128x160 GC9106    | 2          |
-| 80 | Samsung GT-E1200R       | SC6530C  | 128x128 ST7735    | center     |
-| 81 | Nokia 215 4G (TA-1278)  | UMS9117  | 240x320 GC9305    | left soft  |
-| 82 | HMD 130 Music           | SC6531E  | 240x320 GC9307    | *          |
-| 83 | Texet TM-D109           | SC6531   | 128x160 ST7735    | dial       |
-| 84 | Jinga Simple F150       | SC6531   | 128x160 ST7735    | 9          |
-| 85 | Fly FF177               | SC6531   | 128x160 ST7735    | 0          |
-| 86 | Explay Simple           | SC6531   | 240x320 ILI9341   | center     |
-| 87 | BQM 2201 Rio            | SC6531   | 176x220 ILI9225G  | left soft  |
-| 88 | Itel it2161R            | SC6531E  | 128x160 GC9104    | left soft  |
-| 89 | BQM 2400 Taipei         | SC6531   | 240x320 NV3029E   | center     |
-| 90 | HMD 150 Music           | SC6531E  | 240x320 GC9307    | *          |
-| 91 | Itel it2163A            | SC6531E  | 128x160 GC9106    | left soft  |
-| 92 | Lexand LPH1 Mini        | SC6531   | 128x128 GC9101    | left soft  |
-| 93 | BQM 1406 Vitre          | SC6531   | 128x128 ST7735S   | left soft  |
-| 94 | BQ 2405 Dream           | SC6531   | 240x320 ST7789    | left soft  |
-| 95 | Texet TM-404            | SC6531E  | 240x320 GC9300    | left soft  |
-| 96 | Texet TM-422            | SC6531   | 240x320 ST7789    | 0          |
-| 97 | DEXP A281               | SC6531E  | 240x320 GC9300    | dial       |
-| 98 | Fly FF180               | SC6531E  | 128x160 GC9106    | #          |
-| 99 | Fontel SP230            | SC6531E  | 320x240 ILI9342   | 9          |
-| 100 | BQ 3590 Step XXL+      | SC6531E  | 240x320 ILI9340X  | dial       |
-| 101 | Alcatel 2053D          | SC6531E  | 240x320 ???       | *          |
-| 101 | Philips Xenium E2101   | SC6531E  | 128x160 ST7735P3  | left soft  |
-| 102 | meanIT F3 MAX          | SC6531E  | 128x160 GC9106    | 2          |
-| 103 | Inoi 240 Modern 4G     | UMS9117  | 128x160 NV3023    | *          |
-| 104 | Inoi 244 Modern 4G     | UMS9117  | 240x320 NV3030    | *          |
-| 105 | meanIT Veteran         | SC6531E  | 128x160 GC9106    | 2          |
+|  # | Name                     |   Chip   |       LCD         | Boot Key   |
+|----|--------------------------|----------|-------------------|------------|
+|  1 | F+ F256                  | SC6531E  | 240x320 GC9306    | *          |
+|  2 | Digma Linx B241          | SC6531E  | 240x320 ST7789    | center     |
+|  3 | F+ Ezzy 4                | SC6531E  | 128x160 GC9106    | 1          |
+|  4 | Joy's S21                | SC6531   | 128x160 GC9108    | 0          |
+|  5 | Vertex M115              | SC6531   | 128x128 ST7735S   | up         |
+|  6 | Vertex С323              | SC6531   | 128x160 GC9106    | 0          |
+|  7 | Nobby 170B               | SC6531E  | 128x160 GC9106    | #          |
+|  8 | Smart Watch DZ09         | SC6531   | 240x240 GC9307    | none       |
+|  9 | Nokia 105 (TA-1174)      | SC6531E  | 128x160 ST7735    | 7          |
+| 10 | BQ 3586 Tank Max         | SC6531E  | 320x480 R61529    | #          |
+| 11 | Samsung B310E            | SC6530C  | 128x160 ST7735    | center     |
+| 12 | Fontel FP200             | SC6531   | 128x160 GC9106    | left soft  |
+| 13 | Vertex D514              | SC6531E  | 240x320 ???       | center     |
+| 14 | Fly TS114                | SC6531E  | 240x320 GC9306    | right soft |
+| 15 | Energizer E12            | SC6531E  | 128x160 GC9106    | 1          |
+| 16 | Itel it5626              | SC6531   | 240x320 GC9307    | left soft  |
+| 17 | Sunwind C2401            | SC6531E  | 240x320 ST7789    | *          |
+| 18 | DEXP SD2810              | SC6531E  | 240x320 NV3029G   | 2          |
+| 19 | Nokia 6310 (TA-1400)     | SC6531E  | 240x320 ???       | right soft |
+| 20 | YX Q5 Kids Camera        | SC6531   | 128x160 NV3023    | shutter    |
+| 21 | Nomi i184                | SC6531   | 128x160 GC9102    | *          |
+| 22 | Sigma IO67               | SC6531   | 240x320 GC9305    | dial       |
+| 23 | Samsung GT-E1272         | SC6531E  | 128x160 ST7735P   | 2          |
+| 24 | Samsung GT-E1272         | SC6530   | 128x160 ST7735    | center     |
+| 25 | F+ F197                  | SC6531E  | 128x160 NV3023    | 1          |
+| 26 | Alcatel 2003D            | SC6531E  | 240x320 ST7789    | dial       |
+| 27 | Alcatel 2019G            | SC6531E  | 320x240 GC9308    | dial       |
+| 28 | Texet TM-122             | SC6531   | 128x160 GC9106    | 0          |
+| 29 | Texet TM-130             | SC6531   | 128x160 GC9106    | 0          |
+| 30 | Olmio E29                | SC6531E  | 240x320 GC9300    | left soft  |
+| 31 | Texet TM-B307            | SC6531E  | 240x320 ST7789    | 2          |
+| 32 | Olmio E35                | SC6531E  | 320x480 ILI9481   | 0          |
+| 33 | Texet TM-D324            | SC6531E  | 320x480 NT35310   | 0          |
+| 34 | Texet TM-302             | SC6531   | 240x320 ST7789    | 0          |
+| 35 | Strike A13               | SC6531   | 128x160 GC9106    | left soft  |
+| 36 | Olmio A25                | SC6531E  | 240x320 ILI9328   | dial       |
+| 37 | Tokky FP50               | SC6531   | 128x160 GC9106    | *          |
+| 38 | Texet TM-D328            | SC6531E  | 240x320 GC9306    | right      |
+| 39 | Texet TM-321             | SC6531E  | 240x400 SPFD5420A | 1          |
+| 40 | Texet TM-308             | SC6531E  | 240x320 S6D04H0A  | 0          |
+| 41 | Texet TM-B316            | SC6531E  | 128x160 ST7735P   | 9          |
+| 42 | Texet TM-B323            | SC6531E  | 176x220 ILI9225G  | 9          |
+| 43 | Texet TM-B213            | SC6531E  | 240x320 GC9300    | left soft  |
+| 44 | Olmio A15                | SC6531E  | 128x160 ST7735S   | left soft  |
+| 45 | Texet TM-B208            | SC6531E  | 128x160 GC9106    | left soft  |
+| 46 | Olmio X04                | SC6531   | 240x320 ILI9341   | 0          |
+| 47 | Tokky FP10               | SC6531   | 128x64  ST7567A   | up         |
+| 48 | Fontel FP100             | SC6531   | 128x64  ST7567A   | all d-pad  |
+| 49 | Joy's S16                | SC6530C  |  96x68  HX1230    | up         |
+| 50 | Joy's S19                | SC6531   | 128x64  ST7565R   | 3          |
+| 51 | Vertex M114              | SC6530C  |  96x68  HX1230    | up         |
+| 52 | LONG-CZ J9               | SC6531E  |  64x48  SSD1306   | right soft |
+| 53 | Digma Linx A106          | SC6530C  |  96x68  HX1230    | up         |
+| 54 | Prestigio Wize J1        | SC6531E  | 128x160 GC9106    | 9          |
+| 55 | Texet TM-B322            | SC6531   | 128x64  ST7567A   | 0          |
+| 56 | Itel it5615              | SC6531   | 240x320 ST7789    | left soft  |
+| 57 | Jinga Simple F200n       | SC6531   | 128x160 GC9102    | left soft  |
+| 58 | Jinga Simple F170        | SC6531   | 128x160 GC9102    | right soft |
+| 59 | Nokia 105 (TA-1203)      | SC6531E  | 128x160 ST7735    | 7          |
+| 60 | Nokia 110 (TA-1192)      | SC6531E  | 128x160 ST7735    | right soft |
+| 61 | Bjorn P220               | SC6531   | 128x160 NV3021    | left soft  |
+| 62 | Cavion Base 1.7          | SC6531   | 128x160 NV3021    | left soft  |
+| 63 | Nokia 105 (TA-1575)      | SC6531E  | 128x160 ST7735    | *          |
+| 64 | Texet TM-408             | SC6531E  | 240x320 GC9307    | #          |
+| 65 | CHAKEYAKE T190           | UMS9117  | 128x160 GC9106    | *          |
+| 66 | Inoi 140 4G              | UMS9117  | 128x160 ST7735S   | *          |
+| 67 | BQ 1800L One             | UMS9117  | 128x160 GC9106    | 4          |
+| 68 | IPRO K6                  | UMS9117  | 240x320 GC9306    | *          |
+| 69 | Inoi 284 Flip            | UMS9117  | 240x320 GC9306    | 2          |
+| 70 | i-TOP P100               | UMS9117  | 240x320 GC9307    | dial       |
+| 71 | Nokia 110 4G (TA-1543)   | UMS9117  | 128x160 ST7735P3  | *          |
+| 72 | Nokia 106 4G (TA-1553)   | UMS9117  | 128x160 ST7735P3  | *          |
+| 73 | Nokia 3210 4G (TA-1618)  | UMS9117  | 240x320 ST7789P3  | *          |
+| 74 | Philips Xenium E6500     | UMS9117  | 240x320 NV3030B   | 2          |
+| 75 | Itel it2160              | SC6531E  | 128x160 ST7735S   | left soft  |
+| 76 | Alcatel 2040D            | SC6531   | 240x320 ILI9341   | dial       |
+| 77 | Alcatel 2051X/2051D      | SC6531   | 240x320 GC9305    | dial       |
+| 78 | HMD 2660 Flip (TA-1711)  | UMS9117  | 240x320 GC9307    | *          |
+| 79 | IPRO A1 Mini             | SC6531E  | 128x160 GC9106    | 2          |
+| 80 | Samsung GT-E1200R        | SC6530C  | 128x128 ST7735    | center     |
+| 81 | Nokia 215 4G (TA-1278)   | UMS9117  | 240x320 GC9305    | left soft  |
+| 82 | HMD 130 Music            | SC6531E  | 240x320 GC9307    | *          |
+| 83 | Texet TM-D109            | SC6531   | 128x160 ST7735    | dial       |
+| 84 | Jinga Simple F150        | SC6531   | 128x160 ST7735    | 9          |
+| 85 | Fly FF177                | SC6531   | 128x160 ST7735    | 0          |
+| 86 | Explay Simple            | SC6531   | 240x320 ILI9341   | center     |
+| 87 | BQM 2201 Rio             | SC6531   | 176x220 ILI9225G  | left soft  |
+| 88 | Itel it2161R             | SC6531E  | 128x160 GC9104    | left soft  |
+| 89 | BQM 2400 Taipei          | SC6531   | 240x320 NV3029E   | center     |
+| 90 | HMD 150 Music            | SC6531E  | 240x320 GC9307    | *          |
+| 91 | Itel it2163A             | SC6531E  | 128x160 GC9106    | left soft  |
+| 92 | Lexand LPH1 Mini         | SC6531   | 128x128 GC9101    | left soft  |
+| 93 | BQM 1406 Vitre           | SC6531   | 128x128 ST7735S   | left soft  |
+| 94 | BQ 2405 Dream            | SC6531   | 240x320 ST7789    | left soft  |
+| 95 | Texet TM-404             | SC6531E  | 240x320 GC9300    | left soft  |
+| 96 | Texet TM-422             | SC6531   | 240x320 ST7789    | 0          |
+| 97 | DEXP A281                | SC6531E  | 240x320 GC9300    | dial       |
+| 98 | Fly FF180                | SC6531E  | 128x160 GC9106    | #          |
+| 99 | Fontel SP230             | SC6531E  | 320x240 ILI9342   | 9          |
+| 100 | BQ 3590 Step XXL+       | SC6531E  | 240x320 ILI9340X  | dial       |
+| 101 | Alcatel 2053D           | SC6531E  | 240x320 ???       | *          |
+| 101 | Philips Xenium E2101    | SC6531E  | 128x160 ST7735P3  | left soft  |
+| 102 | meanIT F3 MAX           | SC6531E  | 128x160 GC9106    | 2          |
+| 103 | Inoi 240 Modern 4G      | UMS9117  | 128x160 NV3023    | *          |
+| 104 | Inoi 244 Modern 4G      | UMS9117  | 240x320 NV3030    | *          |
+| 105 | meanIT Veteran          | SC6531E  | 128x160 GC9106    | 2          |
+| 106 | Nokia 8210 4G (TA-1489) | UMS9117  | 240x320 GC9307    | left soft  |
 
 * Nokia phones (SC6531): add `end_data 0` command for `spd_dump`, before `fdl` commands
 * Nokia phones (UMS9117): add `t117_exec_dist 0x314d` command for `spd_dump`, before `fdl` commands
@@ -196,6 +197,7 @@ All feature phone LCDs I've seen (except GC9308) are vertical, if you have a pho
 * Fly FF177: use `--spi 0 --lcd 0x80007c89`
 * BQM 2400 Taipei: use `--lcd 0x80313032`, 90-degree rotation is broken
 * meanIT F3 MAX: use `--rotate 3,0`
+* Nokia 8210 4G (TA-1489): use `keymap_ta1489.bin` as keymap, take the file from Release
 
 - monochrome LCDs: can't be detected, support varies across ports and LCDs, better for screens with ST7567A
 
