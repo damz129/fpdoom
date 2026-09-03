@@ -197,7 +197,7 @@ All feature phone LCDs I've seen (except GC9308) are vertical, if you have a pho
 * Fly FF177: use `--spi 0 --lcd 0x80007c89`
 * BQM 2400 Taipei: use `--lcd 0x80313032`, 90-degree rotation is broken
 * meanIT F3 MAX: use `--rotate 3,0`
-* Nokia 8210 4G (TA-1489): use `keymap_ta1489.bin` as keymap, take the file from Release
+* Nokia 8210 4G (TA-1489): use `keymap_ta1489.bin` as keymap, take the file from Releases
 
 - monochrome LCDs: can't be detected, support varies across ports and LCDs, better for screens with ST7567A
 
