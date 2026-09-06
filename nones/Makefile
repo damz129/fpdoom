@@ -2,7 +2,7 @@ NAME = nones
 
 USE_ASM = 1
 
-APP_SRCS = test scr_update cpu ppu system cart mapper arena joypad nones utils
+APP_SRCS = test scr_update cpu ppu system cart mapper arena joypad utils
 ifneq ($(USE_ASM), 0)
 APP_SRCS += nesasm
 endif
