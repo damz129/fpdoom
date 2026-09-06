@@ -14,8 +14,8 @@ APP_OBJS2 = $(NES_SRCS:%=$(OBJDIR)/nes/%.o)
 
 include ../buildinc.make
 
-APP_CFLAGS += -std=c11 -Wall -Wextra -pedantic
-APP_CFLAGS += -Wno-strict-prototypes
+APP_CFLAGS += -std=c11 -Wall -Wextra -pedantic -Wno-strict-prototypes
+APP_CFLAGS += -DDISABLE_APU -DFP
 
 NES_CFLAGS := $(APP_CFLAGS) -Wno-unused-parameter -Wno-extra-semi
 NES_CFLAGS += -DDISABLE_APU -DFP
