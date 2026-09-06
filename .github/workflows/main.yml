@@ -1,0 +1,34 @@
+name: Build NoNES
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-payload:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1.5.0
+      with:
+        ndk-version: r25b
+
+    - name: Compile
+      run: |
+        export TOOLCHAIN=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm
+        export CLANG=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang
+        cd pack_reloc
+        make
+        cd ../nones
+        make clean
+        make all TOOLCHAIN=$TOOLCHAIN CC=$CLANG
+
+    - name: Upload Compiled Payload Binary
+      uses: actions/upload-artifact@v6
+      with:
+        name: nones
+        path: |
+          nones/*.bin
