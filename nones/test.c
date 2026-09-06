@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdalign.h>
 #include "stdbool.h"
 
 #include "syscode.h"
@@ -49,7 +50,7 @@ extern const scr_update_t scr_update_fn[];
 #define RGB555(v) \
 	(((v) >> 8 & 0xf800) | ((v) >> 5 & 0x7c0) | ((v) >> 3 & 0x1f))
 
-uint16_t NesPalette[64] = {
+alignas(4) uint16_t NesPalette[64] = {
 #define X(a, b, c, d) RGB555(a), RGB555(b), RGB555(c), RGB555(d),
 X(0x737373, 0x21188c, 0x0000ad, 0x42009c) /* 00 */
 X(0x8c0073, 0xad0010, 0xa50000, 0x7b0800)
