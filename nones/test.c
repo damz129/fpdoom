@@ -11,6 +11,27 @@
 #include "nones.h"
 #include "utils.h"
 
+char *strtok(char *str, const char *delim) {
+    static char *last;
+    if (str) last = str;
+    if (!last || *last == '\0') return NULL;
+    
+    char *start = last;
+    while (*last != '\0') {
+        const char *d = delim;
+        while (*d != '\0') {
+            if (*last == *d) {
+                *last = '\0';
+                last++;
+                return start;
+            }
+            d++;
+        }
+        last++;
+    }
+    return start;
+}
+
 static const char *szRomName;
 static char szSaveName[256];
 static char app_quit = 0;
