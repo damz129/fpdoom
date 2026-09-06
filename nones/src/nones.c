@@ -1,0 +1,501 @@
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include "stdbool.h"
+#include <stdalign.h>
+
+#ifndef FP
+#include <SDL3/SDL.h>
+#endif
+
+#include "system.h"
+#include "cart.h"
+#include "nones.h"
+
+#ifdef FP
+typedef void (*scr_update_t)(void *src, uint16_t *dst, unsigned h);
+extern const scr_update_t scr_update_fn[];
+extern uint16_t *framebuf;
+extern uint16_t NesPalette[];
+
+static unsigned timerlast, timertick, timertick_ms;
+#define FRAMERATE 60
+#define TIMER_MUL (((1000 << 12) + FRAMERATE - 1) / FRAMERATE)
+
+static void fp_wait_frame(void) {
+    unsigned t0 = timertick, t1, t2;
+    t2 = 1;
+    do t0 += TIMER_MUL; while (--t2);
+    t2 = t0 >> 12;
+    t1 = t2 - timertick_ms;
+    if (t2 >= 1000) t0 -= TIMER_MUL * 60, t2 -= 1000;
+    timertick = t0; timertick_ms = t2;
+    t1 += timerlast; timerlast = t1;
+    t0 = sys_timer_ms(); t1 -= t0;
+    if ((int)t1 > 0 && t1 > 500 / 60) sys_wait_ms(t1);
+}
+#endif
+
+static SDL_AudioStream *stream = NULL;
+
+void NonesPutSoundData(int16_t *buffer, const int buffer_size)
+{
+    // SDL buffer size is 5x the size of the sample buffer
+    const int minimum_audio = (5 * buffer_size);
+    if (SDL_GetAudioStreamQueued(stream) < minimum_audio)
+    {
+        SDL_PutAudioStreamData(stream, buffer, buffer_size);
+    }
+}
+
+static void NonesDrawDebugInfo(Nones *nones, NonesInfo *info)
+{
+    if (!nones->debug_info)
+        return;
+
+    SDL_SetRenderDrawColor(nones->renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+    snprintf(info->cpu_msg, sizeof(info->cpu_msg), "A:%02X X:%02X Y:%02X S:%02X P:%02X", nones->system->cpu->a,
+             nones->system->cpu->x, nones->system->cpu->y, nones->system->cpu->sp, nones->system->cpu->status.raw);
+
+    SDL_RenderDebugText(nones->renderer, 2, 1, info->cpu_msg);
+    SDL_RenderDebugText(nones->renderer, 2, 9, nones->system->cpu->debug_msg);
+
+    ++info->frames;
+    if (SDL_GetTicks() - info->timer >= 1000)
+    {
+        snprintf(info->fps_msg, sizeof(info->fps_msg), "FPS:%lu", info->frames);
+        info->frames = 0;
+        info->timer += 1000;
+    }
+
+    SDL_SetRenderDrawColor(nones->renderer, 255, 255, 84, SDL_ALPHA_OPAQUE);
+    SDL_RenderDebugText(nones->renderer, 200, 1, info->fps_msg);
+}
+
+static void NonesToggleFullScreen(Nones *nones)
+{
+    nones->fullscreen = !nones->fullscreen;
+    if (!SDL_SetWindowFullscreen(nones->window, nones->fullscreen))
+    {
+        SDL_Log("SDL_SetWindowFullscreen failed: %s\n", SDL_GetError());
+    }
+}
+
+static int NonesGetScreenWidth(Nones *nones)
+{
+    return nones->aspect_ratio ? SCREEN_WIDTH + SCREEN_WIDTH_EDGE : SCREEN_WIDTH;
+}
+
+static void NonesSetIntegerScale(Nones *nones, int scale)
+{
+    SDL_SetWindowSize(nones->window, NonesGetScreenWidth(nones) * scale, SCREEN_HEIGHT * scale);
+    // Doesn't work on Wayland...
+    SDL_SetWindowPosition(nones->window,  SDL_WINDOWPOS_CENTERED,  SDL_WINDOWPOS_CENTERED);
+}
+
+static const int joystick_button_table[2][4] =
+{
+    { 2,  3,  4,  5  },
+    { 10, 11, 12, 13 }
+};
+
+static void NonesUpdateJoyStick(Nones *nones, SDL_Joystick *joystick, bool player2)
+{
+    const int16_t axis_x = SDL_GetJoystickAxis(joystick, SDL_GAMEPAD_AXIS_LEFTX);
+    const int16_t axis_y = SDL_GetJoystickAxis(joystick, SDL_GAMEPAD_AXIS_LEFTY);
+
+    if (axis_x || axis_y)
+    {
+        if (axis_y <= -16000)
+        {
+            nones->buttons[joystick_button_table[player2][0]] = true;
+        }
+        else if (axis_y >= 16000)
+        {
+            nones->buttons[joystick_button_table[player2][1]] = true;
+        }
+    
+        if (axis_x <= -16000)
+        {
+            nones->buttons[joystick_button_table[player2][2]] = true;
+        }
+        else if (axis_x >= 16000)
+        {
+            nones->buttons[joystick_button_table[player2][3]] = true;
+        }
+    }
+}
+
+static void NonesHandleInput(Nones *nones)
+{
+#ifdef FP
+
+    uint32_t keys = sys_getkey_states(); 
+    static uint32_t reset_hold = 0, exit_hold = 0;
+    uint32_t cur_time = sys_timer_ms();
+
+    if (keys & (1 << 1)) { // KEY_RESET = 1
+        if (!reset_hold) reset_hold = cur_time;
+        else if (cur_time - reset_hold >= 1000) { NonesReset(nones); reset_hold = 0; }
+    } else reset_hold = 0;
+
+    if (keys & (1 << 2)) { // KEY_EXIT = 2
+        if (!exit_hold) exit_hold = cur_time;
+        else if (cur_time - exit_hold >= 1000) { nones->quit = true; exit_hold = 0; }
+    } else exit_hold = 0;
+    
+    memset(nones->buttons, 0, sizeof(nones->buttons));
+    nones->buttons[0] = (keys & (1 << 8)) != 0;  // KEY_A = 8
+    nones->buttons[1] = (keys & (1 << 9)) != 0;  // KEY_B = 9
+    nones->buttons[2] = (keys & (1 << 11)) != 0; // KEY_UP = 11
+    nones->buttons[3] = (keys & (1 << 12)) != 0; // KEY_DOWN = 12
+    nones->buttons[4] = (keys & (1 << 13)) != 0; // KEY_LEFT = 13
+    nones->buttons[5] = (keys & (1 << 14)) != 0; // KEY_RIGHT = 14
+    nones->buttons[6] = (keys & (1 << 10)) != 0; // KEY_START = 10
+    nones->buttons[7] = (keys & (1 << 7)) != 0;  // KEY_SELECT = 7
+
+    SystemUpdateJPButtons(nones->system, nones->buttons);
+#else
+    const bool *kb_state  = SDL_GetKeyboardState(NULL);
+
+    nones->buttons[0] = kb_state[SDL_SCANCODE_SPACE];
+    nones->buttons[1] = kb_state[SDL_SCANCODE_LSHIFT];
+    nones->buttons[2] = kb_state[SDL_SCANCODE_UP] || kb_state[SDL_SCANCODE_W];
+    nones->buttons[3] = kb_state[SDL_SCANCODE_DOWN] || kb_state[SDL_SCANCODE_S];
+    nones->buttons[4] = kb_state[SDL_SCANCODE_LEFT] || kb_state[SDL_SCANCODE_A];
+    nones->buttons[5] = kb_state[SDL_SCANCODE_RIGHT] || kb_state[SDL_SCANCODE_D];
+    nones->buttons[6] = kb_state[SDL_SCANCODE_RETURN];
+    nones->buttons[7] = kb_state[SDL_SCANCODE_TAB];
+
+    if (nones->gamepad1)
+    {
+        nones->buttons[0] |= SDL_GetGamepadButton(nones->gamepad1, SDL_GAMEPAD_BUTTON_EAST);
+        nones->buttons[1] |= SDL_GetGamepadButton(nones->gamepad1, SDL_GAMEPAD_BUTTON_SOUTH);
+        nones->buttons[2] |= SDL_GetGamepadButton(nones->gamepad1, SDL_GAMEPAD_BUTTON_DPAD_UP);
+        nones->buttons[3] |= SDL_GetGamepadButton(nones->gamepad1, SDL_GAMEPAD_BUTTON_DPAD_DOWN);
+        nones->buttons[4] |= SDL_GetGamepadButton(nones->gamepad1, SDL_GAMEPAD_BUTTON_DPAD_LEFT);
+        nones->buttons[5] |= SDL_GetGamepadButton(nones->gamepad1, SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
+        nones->buttons[6] |= SDL_GetGamepadButton(nones->gamepad1, SDL_GAMEPAD_BUTTON_START);
+        nones->buttons[7] |= SDL_GetGamepadButton(nones->gamepad1, SDL_GAMEPAD_BUTTON_BACK);
+
+        NonesUpdateJoyStick(nones, nones->joystick1, false);
+    }
+
+    if (nones->gamepad2)
+    {
+        nones->buttons[8]  = SDL_GetGamepadButton(nones->gamepad2, SDL_GAMEPAD_BUTTON_EAST);
+        nones->buttons[9]  = SDL_GetGamepadButton(nones->gamepad2, SDL_GAMEPAD_BUTTON_SOUTH);
+        nones->buttons[10] = SDL_GetGamepadButton(nones->gamepad2, SDL_GAMEPAD_BUTTON_DPAD_UP);
+        nones->buttons[11] = SDL_GetGamepadButton(nones->gamepad2, SDL_GAMEPAD_BUTTON_DPAD_DOWN);
+        nones->buttons[12] = SDL_GetGamepadButton(nones->gamepad2, SDL_GAMEPAD_BUTTON_DPAD_LEFT);
+        nones->buttons[13] = SDL_GetGamepadButton(nones->gamepad2, SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
+        nones->buttons[14] = SDL_GetGamepadButton(nones->gamepad2, SDL_GAMEPAD_BUTTON_START);
+        nones->buttons[15] = SDL_GetGamepadButton(nones->gamepad2, SDL_GAMEPAD_BUTTON_BACK);
+
+        NonesUpdateJoyStick(nones, nones->joystick2, true);
+    }
+
+    SystemUpdateJPButtons(nones->system, nones->buttons);
+
+    nones->quit |= kb_state[SDL_SCANCODE_ESCAPE];
+    
+    // TODO: This could be just done when polling for events
+    if (kb_state[SDL_SCANCODE_1])
+        NonesSetIntegerScale(nones, 1);
+    else if (kb_state[SDL_SCANCODE_2])
+        NonesSetIntegerScale(nones, 2);
+    else if (kb_state[SDL_SCANCODE_3])
+        NonesSetIntegerScale(nones, 3);
+    else if (kb_state[SDL_SCANCODE_4])
+        NonesSetIntegerScale(nones, 4);
+    else if (kb_state[SDL_SCANCODE_5])
+        NonesSetIntegerScale(nones, 5);
+#endif
+}
+
+static void NonesInit(Nones *nones, const char *path, const char *audio_driver, const int sample_rate, const int aspect_ratio, const bool fullscreen)
+{
+#ifdef FP
+    memset(nones, 0, sizeof(*nones));
+    nones->arena = ArenaCreate(1024 * 1024 * 3);
+    nones->system = SystemCreate(nones->arena);
+    nones->aspect_ratio = aspect_ratio;
+
+    if (SystemLoadCart(nones->arena, nones->system, path)) {
+        ArenaDestroy(nones->arena);
+        exit(EXIT_FAILURE);
+    }
+    timerlast = sys_timer_ms(); timertick = 0; timertick_ms = 0;
+#else
+    memset(nones, 0, sizeof(*nones));
+    nones->arena = ArenaCreate(1024 * 1024 * 5);
+    nones->system = SystemCreate(nones->arena);
+    nones->aspect_ratio = aspect_ratio;
+
+    const int screen_width = NonesGetScreenWidth(nones);
+
+    if (SystemLoadCart(nones->arena, nones->system, path))
+    {
+        ArenaDestroy(nones->arena);
+        exit(EXIT_FAILURE);
+    }
+
+    if (audio_driver != NULL)
+    {
+        SDL_SetHint(SDL_HINT_AUDIO_DRIVER, audio_driver);
+    }
+
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD))
+    {
+        SDL_Log("SDL Init Error: %s", SDL_GetError());
+        ArenaDestroy(nones->arena);
+        exit(EXIT_FAILURE);
+    }
+
+    SDL_Log("SDL audio driver: %s\n", SDL_GetCurrentAudioDriver());
+
+    nones->window = SDL_CreateWindow("nones", screen_width * 2, SCREEN_HEIGHT * 2, 0);
+    if (!nones->window)
+    {
+        SDL_Log("Window Error: %s", SDL_GetError());
+        SDL_Quit();
+        exit(EXIT_FAILURE);
+    }
+
+    nones->renderer = SDL_CreateRenderer(nones->window, NULL);
+    if (!nones->renderer)
+    {
+        SDL_Log("Renderer Error: %s", SDL_GetError());
+        SDL_DestroyWindow(nones->window);
+        SDL_Quit();
+        exit(EXIT_FAILURE);
+    }
+
+    if (!SDL_SetRenderLogicalPresentation(nones->renderer,
+                                          screen_width,
+                                          SCREEN_HEIGHT,
+                                          SDL_LOGICAL_PRESENTATION_LETTERBOX))
+    {
+        SDL_Log("SDL_SetRenderLogicalPresentation failed: %s\n", SDL_GetError());
+    }
+
+    if (!SDL_SetRenderVSync(nones->renderer, 1))
+    {
+        SDL_Log("Could not enable VSync! SDL error: %s\n", SDL_GetError());
+    }
+
+    if (fullscreen)
+        NonesToggleFullScreen(nones);
+
+    nones->gamepads = SDL_GetGamepads(&nones->num_gamepads);
+    if (nones->gamepads)
+    {
+        nones->gamepad1 = SDL_OpenGamepad(nones->gamepads[0]);
+        nones->joystick1 = SDL_GetGamepadJoystick(nones->gamepad1);
+        char *gamepad1_info = SDL_GetGamepadMapping(nones->gamepad1);
+        printf("Gamepad1: %s\n", gamepad1_info);
+        SDL_free(gamepad1_info);
+
+        if (nones->num_gamepads > 1)
+        {
+            nones->gamepad2 = SDL_OpenGamepad(nones->gamepads[1]);
+            nones->joystick2 = SDL_GetGamepadJoystick(nones->gamepad2);
+            char *gamepad2_info = SDL_GetGamepadMapping(nones->gamepad2);
+            printf("Gamepad2: %s\n", gamepad2_info);
+            SDL_free(gamepad2_info);
+        }
+    }
+    else
+    {
+        SDL_Log("No gamepad detected! SDL error: %s\n", SDL_GetError());
+    }
+
+    SDL_AudioSpec spec;
+    spec.channels = 1;
+    spec.format = SDL_AUDIO_S16;
+    spec.freq = sample_rate;
+
+    stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, NULL, NULL);
+    if (!stream)
+    {
+        SDL_Log("Couldn't create audio stream: %s", SDL_GetError());
+        SDL_DestroyRenderer(nones->renderer);
+        SDL_DestroyWindow(nones->window);
+        SDL_Quit();
+        ArenaDestroy(nones->arena);
+        exit(EXIT_FAILURE);
+    }
+#endif
+    SDL_ResumeAudioStreamDevice(stream);
+
+    nones->texture = SDL_CreateTexture(nones->renderer,
+        SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        SCREEN_WIDTH, SCREEN_HEIGHT);
+
+#if SDL_VERSION_ATLEAST(3, 4, 0)
+    // Make sure the linked SDL3 library being used is also the correct version.
+    SDL_ScaleMode scale_mode = (SDL_GetVersion() >= SDL_VERSIONNUM(3,4,0) ? SDL_SCALEMODE_PIXELART : SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureScaleMode(nones->texture, scale_mode);
+#else
+    SDL_SetTextureScaleMode(nones->texture, SDL_SCALEMODE_NEAREST);
+#endif
+
+    SDL_SetWindowPosition(nones->window,  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+}
+
+static void NonesShutdown(Nones *nones)
+{
+    SystemShutdown(nones->system);
+
+#ifndef FP
+    // Handles textures as well, so no need to call SDL_DestroyTexture here
+    SDL_DestroyRenderer(nones->renderer);
+
+    SDL_free(nones->gamepads);
+    if (nones->gamepad1)
+        SDL_CloseGamepad(nones->gamepad1);
+    if (nones->gamepad2)
+        SDL_CloseGamepad(nones->gamepad2);
+    SDL_DestroyAudioStream(stream);
+    SDL_DestroyWindow(nones->window);
+    SDL_Quit();
+#
+    
+    ArenaDestroy(nones->arena);
+}
+
+static void NonesReset(Nones *nones)
+{
+    SystemReset(nones->system);
+}
+
+void NonesRun(Nones *nones, bool ppu_warmup, bool fullscreen, const int aspect_ratio, bool swap_duty_cycles,
+              const int sample_rate, const char *path, const char *audio_driver)
+{
+    NonesInit(nones, path, audio_driver, sample_rate, aspect_ratio, fullscreen);
+
+    // Allocate pixel buffers (back and front)
+#ifdef FP
+    uint16_t *buffers[2];
+    const uint32_t buffer_size = (SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint16_t));
+#else
+    uint32_t *buffers[2];
+    const uint32_t buffer_size = (SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint32_t));
+#endif
+    buffers[0] = ArenaPush(nones->arena, buffer_size);
+    buffers[1] = ArenaPush(nones->arena, buffer_size);
+
+#ifdef FP
+    SystemInit(nones->system, nones->arena, ppu_warmup, swap_duty_cycles, sample_rate, (void*)buffers, buffer_size);
+#else
+    SystemInit(nones->system,nones->arena, ppu_warmup, swap_duty_cycles, sample_rate, buffers, buffer_size);
+#end
+
+#ifdef FP
+    while (!nones->quit)
+    {
+        NonesHandleInput(nones);
+        SystemRun(nones->system, nones->debug_info);
+        sys_wait_refresh();
+        unsigned crop = sys_data.user;
+        unsigned h = SCREEN_HEIGHT - crop * 2;
+        
+        // Trỏ thẳng địa chỉ mảng 16-bit vào hàm nội suy đồ họa thô của fpdoom
+        uint16_t *src_start = buffers[1] + (crop * SCREEN_WIDTH);
+        scr_update_fn[sys_data.scaler](src_start, framebuf, h);
+        
+        // Phát lệnh quét thanh ghi RAM lên màn hình điện thoại thật
+        sys_start_refresh();
+
+        // 4. Khóa cứng tốc độ ở mức chuẩn 60 FPS chống chạy nhanh tua băng
+        fp_wait_frame();
+    }
+#else
+    SDL_Event event;
+    void *raw_pixels;
+    int raw_pitch;
+
+    NonesInfo info = {
+        .cpu_msg = {'\0'},
+        .fps_msg = {'\0'},
+        .frames = 0,
+        .timer = SDL_GetTicks(),
+    };
+
+    uint64_t previous_time = 0;
+    uint64_t current_time = 0;
+    uint64_t accumulator = 0;
+
+    float accum_delta = FRAME_TIME_NS;
+
+    while (!nones->quit)
+    {
+        uint64_t start_time = SDL_GetTicksNS();
+        previous_time = current_time;
+        current_time = start_time;
+        uint64_t delta_time = current_time - previous_time;
+        accumulator += delta_time;
+
+        while (SDL_PollEvent(&event))
+        {
+            switch (event.type)
+            {
+                case SDL_EVENT_QUIT:
+                    nones->quit = true;
+                    break;
+                case SDL_EVENT_KEY_UP:
+                    switch (event.key.key)
+                    {
+                        case SDLK_F:
+                            NonesToggleFullScreen(nones);
+                            break;
+                        case SDLK_F1:
+                            nones->debug_info = !nones->debug_info;
+                            break;
+                        case SDLK_F2:
+                            NonesReset(nones);
+                            break;
+                        case SDLK_F6:
+                            SystemUpdateState(nones->system, PAUSED);
+                            break;
+                        case SDLK_F10:
+                            SystemUpdateState(nones->system, STEP_FRAME);
+                            break;
+                        case SDLK_F11:
+                            SystemUpdateState(nones->system, STEP_INSTR);
+                            break;
+                    }
+                    break;
+            }
+        }
+
+        NonesHandleInput(nones);
+
+        if (accumulator >= accum_delta)
+        {
+            SystemRun(nones->system, nones->debug_info);
+
+            accumulator -= accum_delta;
+
+            SDL_LockTexture(nones->texture, NULL, &raw_pixels, &raw_pitch);
+            memcpy(raw_pixels, nones->system->ppu->buffers[1], buffer_size);
+            SDL_UnlockTexture(nones->texture);
+
+            SDL_RenderTexture(nones->renderer, nones->texture, NULL, NULL);
+            NonesDrawDebugInfo(nones, &info);
+            SDL_RenderPresent(nones->renderer);
+        }
+
+        uint64_t frame_time = SDL_GetTicksNS() - start_time;
+        if (frame_time < FRAME_CAP_NS)
+        {
+            SDL_DelayNS(FRAME_CAP_NS - frame_time);
+        }
+    }
+#endif
+
+    NonesShutdown(nones);
+}

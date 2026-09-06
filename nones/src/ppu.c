@@ -1,0 +1,1215 @@
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+
+#ifndef FP
+#include <SDL3/SDL.h>
+#endif
+
+#include "arena.h"
+#include "apu.h"
+#include "ppu.h"
+#include "cpu.h"
+#include "joypad.h"
+#include "arena.h"
+#include "cart.h"
+#include "system.h"
+#include "nones.h"
+#include "utils.h"
+
+static uint8_t vram[0x800];
+// Pointers to handle mirroring
+static uint8_t *nametables[4];
+// Filled on PPU Init
+#ifdef FP
+static uint16_t color_lut[64][8];
+#else
+static uint32_t color_lut[64][8];
+#endif
+
+//#define FAST_SPRITE_EVAL
+#define FAST_BG_FETCH
+
+static const Color sys_palette[64] =
+{
+    {0x66, 0x66, 0x66},
+    {0x00, 0x2A, 0x88}, 
+    {0x14, 0x12, 0xA7},
+    {0x3B, 0x00, 0xA4}, 
+    {0x5C, 0x00, 0x7E},
+    {0x6E, 0x00, 0x40},
+    {0x6C, 0x07, 0x00},
+    {0x56, 0x1D, 0x00},
+    {0x33, 0x35, 0x00},
+    {0x0B, 0x48, 0x00},
+    {0x00, 0x52, 0x00},
+    {0x00, 0x4F, 0x08},
+    {0x00, 0x40, 0x4D}, 
+    {0x00, 0x00, 0x00},
+    {0x00, 0x00, 0x00},
+    {0x00, 0x00, 0x00},
+    {0xAD, 0xAD, 0xAD}, 
+    {0x15, 0x5F, 0xD9},
+    {0x42, 0x40, 0xFF}, 
+    {0x75, 0x27, 0xFE},
+    {0xA0, 0x1A, 0xCC},
+    {0xB7, 0x1E, 0x7B},
+    {0xB5, 0x31, 0x20}, 
+    {0x99, 0x4E, 0x00},
+    {0x6B, 0x6D, 0x00},
+    {0x38, 0x87, 0x00},
+    {0x0C, 0x93, 0x00}, 
+    {0x00, 0x8F, 0x32},
+    {0x00, 0x7C, 0x8D}, 
+    {0x00, 0x00, 0x00},
+    {0x00, 0x00, 0x00}, 
+    {0x00, 0x00, 0x00},
+    {0xFF, 0xFE, 0xFF}, 
+    {0x64, 0xB0, 0xFF},
+    {0x92, 0x90, 0xFF}, 
+    {0xC6, 0x76, 0xFF},
+    {0xF3, 0x6A, 0xFF}, 
+    {0xFE, 0x6E, 0xCC},
+    {0xFE, 0x81, 0x70}, 
+    {0xEA, 0x9E, 0x22},
+    {0xBC, 0xBE, 0x00}, 
+    {0x88, 0xD8, 0x00},
+    {0x5C, 0xE4, 0x30}, 
+    {0x45, 0xE0, 0x82},
+    {0x48, 0xCD, 0xDE}, 
+    {0x4F, 0x4F, 0x4F},
+    {0x00, 0x00, 0x00}, 
+    {0x00, 0x00, 0x00},
+    {0xFF, 0xFE, 0xFF}, 
+    {0xC0, 0xDF, 0xFF},
+    {0xD3, 0xD2, 0xFF}, 
+    {0xE8, 0xC8, 0xFF},
+    {0xFB, 0xC2, 0xFF}, 
+    {0xFF, 0xC4, 0xEA},
+    {0xFF, 0xCC, 0xB3}, 
+    {0xF4, 0xD8, 0x8E},
+    {0xE0, 0xE6, 0x7C}, 
+    {0xC8, 0xF0, 0x7E},
+    {0xAD, 0xEF, 0x8E}, 
+    {0x9D, 0xE8, 0xC5},
+    {0xA4, 0xE2, 0xEA}, 
+    {0xA8, 0xA8, 0xA8},
+    {0x00, 0x00, 0x00},
+    {0x00, 0x00, 0x00}
+};
+
+#ifdef FP
+static inline uint16_t GetBGColor(Ppu *ppu, const uint8_t palette_index, const uint8_t pixel)
+#else
+static inline uint32_t GetBGColor(Ppu *ppu, const uint8_t palette_index, const uint8_t pixel)
+#endif
+{
+    // Compute palette memory address
+    const uint16_t palette_addr = 0x3F00 | (palette_index << 2) | pixel;
+
+    // When rendering is off and V points to palette memory;
+    // The backdrop color is replaced by the value from the low 5 bits of V
+    const bool backdrop_override = !ppu->rendering && (((ppu->v.raw & 0x3FFF) >= 0x3F00));
+
+    // Read the color index from PPU palette memory
+    uint16_t color_index = ppu->palettes[palette_addr & 0x1F];
+
+    if (backdrop_override)
+    {
+        color_index = ppu->palettes[ppu->v.palette.addr];
+    }
+    else if (!pixel)
+    {
+        // Use backdrop color
+        color_index = ppu->palettes[0];
+    }
+
+    if (ppu->mask.grey_scale)
+    {
+        color_index &= 0x30;
+    }
+
+    return color_lut[color_index & 0x3F][ppu->mask.raw >> 5];
+}
+
+ifdef FP
+static inline uint16_t GetSpriteColor(Ppu *ppu, const uint8_t palette_index, const uint8_t pixel)
+#else
+static inline uint32_t GetSpriteColor(Ppu *ppu, const uint8_t palette_index, const uint8_t pixel)
+#endif
+{
+    const uint16_t palette_addr = 0x10 | (palette_index << 2) | pixel;
+    uint16_t color_index = ppu->palettes[palette_addr & 0x1F];
+
+    if (ppu->mask.grey_scale)
+    {
+        color_index &= 0x30;
+    }
+
+    return color_lut[color_index & 0x3F][ppu->mask.raw >> 5];
+}
+
+static inline void PpuUpdateBus(Ppu *ppu, const uint16_t addr)
+{
+    uint8_t prev_a12 = (ppu->bus_addr >> 12) & 1;
+    uint8_t new_a12 = (addr >> 12) & 1;
+
+    if (~prev_a12 & new_a12)
+    {
+        if (ppu->a12_low_count > 3)
+        {
+            //printf("Bus Addr: 0x%X -> 0x%X PPU A12: %d scanline:%d cycle: %d\n", ppu->bus_addr, addr, new_a12, ppu->scanline, ppu->cycle_counter);
+            PpuClockMMC3();
+        }
+        ppu->a12_low_count = 0;
+    }
+    else
+    {
+        ++ppu->a12_low_count;
+    }
+
+    ppu->bus_addr = addr;
+}
+
+static inline uint8_t PpuReadChr(Ppu *ppu, const uint16_t addr)
+{
+    PpuUpdateBus(ppu, addr);
+    return PpuBusReadChrRom(addr);
+}
+
+static inline void PpuCopyTtoV(Ppu *ppu)
+{
+    const uint8_t prev_a12 = ppu->v.raw_bits.bit12;
+    // Transfer t to v
+    ppu->v.raw = ppu->t.raw;
+    if (~prev_a12 & ppu->v.raw_bits.bit12)
+        PpuClockMMC3();
+
+    ppu->copy_t_delay = 2;
+    ppu->copy_t = false;
+}
+
+void PpuWriteAddrReg(Ppu *ppu, const uint8_t value)
+{
+    if (!ppu->w)
+    {
+        // Set high byte of t
+        ppu->t.writing.high = value & 0x3F;
+        ppu->t.writing.bit_z = 0;
+    }
+    else
+    {
+        // Set low byte of t
+        ppu->t.writing.low = value;
+        ppu->copy_t = true;
+    }
+    ppu->w = !ppu->w;
+}
+
+static inline uint16_t PpuGetAttribAddr(Ppu *ppu)
+{
+    return 0x23C0 | (ppu->v.raw & 0x0C00) | ((ppu->v.raw >> 4) & 0x38) | ((ppu->v.raw >> 2) & 0x07);
+}
+
+static inline uint16_t PpuGetNTAddr(Ppu *ppu)
+{
+    return 0x2000 | (ppu->v.raw & 0x0FFF);
+}
+
+static inline void PpuNametableWrite(Ppu *ppu, uint16_t addr, uint8_t data)
+{
+    nametables[ppu->v.scrolling.name_table_sel][addr & 0x3FF] = data;
+}
+
+uint8_t PpuNametableRead(Ppu *ppu, uint16_t addr)
+{
+    return nametables[ppu->v.scrolling.name_table_sel][addr & 0x3FF];
+}
+
+// Horizontal scrolling
+static inline void PpuIncrementScrollX(Ppu *ppu)
+{
+    if (ppu->v.scrolling.coarse_x == 31)
+    {
+        ppu->v.scrolling.coarse_x = 0;
+        // Switch horizontal nametable
+        ppu->v.scrolling.name_table_sel ^= 0x1;
+    }
+    else
+    {
+        ++ppu->v.scrolling.coarse_x;
+    }
+}
+
+// Vertical Scroll
+static inline void PpuIncrementScrollY(Ppu *ppu)
+{
+    if (ppu->v.scrolling.fine_y < 7)
+        ++ppu->v.scrolling.fine_y;
+    else
+    {
+        ppu->v.scrolling.fine_y = 0;
+        if (ppu->v.scrolling.coarse_y == 29)
+        {
+            ppu->v.scrolling.coarse_y = 0;
+            // Flip vertical nametable bit
+            ppu->v.scrolling.name_table_sel ^= 0x2;
+        }
+        else if (ppu->v.scrolling.coarse_y == 31)
+        {
+            // coarse Y = 0, nametable not switched
+            ppu->v.scrolling.coarse_y = 0;
+        }
+        else
+        {
+            // increment coarse Y
+            ++ppu->v.scrolling.coarse_y;
+        }
+    }
+}
+
+static inline void PpuPaletteWrite(Ppu *ppu, const uint8_t palette_addr, const uint8_t data)
+{
+    ppu->palettes[palette_addr] = data;
+
+    if (!(palette_addr & 3))
+        ppu->palettes[palette_addr ^ 0x10] = data;
+}
+
+static inline void PpuWriteCtrl(Ppu *ppu, const uint8_t data)
+{
+    ppu->ctrl.raw = data;
+    ppu->t.scrolling.name_table_sel = data & 0x3;
+    //printf("PpuWriteCtrl: NMI: %d scanline:%d cycle: %d\n", ppu->ctrl.vblank_nmi, ppu->scanline, ppu->cycle_counter);
+}
+
+void PpuWriteData(Ppu *ppu, const uint8_t data)
+{
+    const uint16_t addr = ppu->v.raw & 0x3FFF;
+
+    // Extract A13, A12, A11 for region decoding
+    switch (addr >> 12)
+    {
+        case 0x0:
+        case 0x1:
+        {
+            // chr rom is actually chr ram
+            PpuBusWriteChrRam(addr, data);
+            break;
+        }
+        case 0x2:
+            PpuNametableWrite(ppu, addr, data);
+            break;
+        case 0x3:
+        {
+            if (addr < 0x3F00)
+                PpuNametableWrite(ppu, addr, data);
+            else
+                PpuPaletteWrite(ppu, addr & 0x1F, data);
+            break;
+        }
+    }
+
+    // Outside of rendering, reads from or writes to $2007 will add either 1 or 32 to v depending on the VRAM increment bit set via $2000.
+    // During rendering (on the pre-render line and the visible lines 0-239, provided either background or sprite rendering is enabled),
+    // it will update v in an odd way, triggering a coarse X increment and a Y increment simultaneously (with normal wrapping behavior).
+    ppu->vram_update = true;
+}
+
+static inline void PpuWriteScroll(Ppu *ppu, const uint8_t value)
+{
+    if (!ppu->w)
+    {
+        // First write: X scroll (fine X + coarse X)
+        ppu->t.scrolling.coarse_x = value >> 3;
+        ppu->x = value & 0x7;
+    }
+    else
+    {
+        // Second write: Y scroll (fine Y + coarse Y)
+        ppu->t.scrolling.coarse_y = value >> 3;
+        ppu->t.scrolling.fine_y = value & 0x7;
+    }
+    ppu->w = !ppu->w;
+}
+
+static inline uint8_t PpuReadStatus(Ppu *ppu)
+{
+    PpuStatus ret_status = ppu->status;
+    ret_status.open_bus = ppu->io_bus & 0x1F;
+
+    //printf("PpuReadStatus: %d scanline:%d cycle: %d\n", ppu->status.vblank, ppu->scanline, ppu->cycle_counter);
+
+    // Clear vblank flag here and on the next ppu cycle
+    ppu->status.vblank = 0;
+    ppu->clear_vblank = true;
+    // Clear write toggle
+    ppu->w = 0;
+
+    return ret_status.raw;
+}
+
+static inline uint8_t PpuReadData(Ppu *ppu)
+{
+    uint16_t addr = ppu->v.raw & 0x3FFF;
+    uint8_t data = 0;
+
+    switch (addr >> 12)
+    {
+        case 0:
+        case 1:
+        {
+            // Grab the stale buffer value
+            data = ppu->buffered_data;
+            // Load new data into buffer
+            ppu->buffered_data = PpuReadChr(ppu, addr);
+            break;
+        }
+
+        case 2:
+        case 3:
+        {
+            PpuUpdateBus(ppu, addr);
+            if (addr < 0x3F00)
+            {
+                // Return stale buffer value
+                data = ppu->buffered_data;
+                ppu->buffered_data = ExtNameTableRead(ppu, addr);
+            }
+            else
+            {
+                ppu->buffered_data = ExtNameTableRead(ppu, addr);
+                data = (ppu->palettes[addr & 0x1F] & 0x3F) | (ppu->io_bus & 0xC0);
+                if (ppu->mask.grey_scale)
+                    data &= 0x10;
+            }
+            break;
+        }
+    }
+
+    ppu->vram_update = true;
+
+    return data;
+}
+
+uint8_t PpuReadReg(Ppu *ppu, const uint16_t addr)
+{
+    switch (addr & 7)
+    {
+        case PPU_STATUS:
+            ppu->io_bus = PpuReadStatus(ppu);
+            break;
+        case OAM_DATA:
+        {
+            if (ppu->rendering && (ppu->scanline < 240 || ppu->scanline == 261) &&
+                ((ppu->cycle_counter && ppu->cycle_counter <= 64) || (ppu->cycle_counter >= 256 && ppu->cycle_counter <= 320)))
+            {
+                ppu->io_bus = 0xFF;
+            }
+            else
+            {
+                Sprite found_sprite = ppu->oam1[ppu->oam1_addr >> 2];
+                found_sprite.attribs.padding = 0;
+                ppu->io_bus = found_sprite.raw[ppu->oam1_addr & 3];
+            }
+            break;
+        }
+        case PPU_DATA:
+            ppu->io_bus = PpuReadData(ppu);
+            break;
+    }
+
+    // Read value from the io bus
+    return ppu->io_bus;
+}
+
+void PpuWriteReg(Ppu *ppu, const uint16_t addr, const uint8_t data)
+{
+    const uint16_t reg = addr & 7;
+
+    // NES-001 PPU warmup. This will break Famicom games that try to enable NMI before 29658 cpu cycles have passed.
+    if (ppu->warmup && !ppu->frames && (reg == PPU_CTRL || reg == PPU_MASK || reg == PPU_SCROLL || reg == PPU_ADDR))
+        return;
+
+    switch (reg)
+    {
+        case PPU_CTRL:
+            PpuWriteCtrl(ppu, data);
+            break;
+        case PPU_MASK:
+            ppu->mask.raw = data;
+            //printf("PPU Mask set at scanline: %d cycle: %d frame: %lu cpu cycles: %ld\n", ppu->scanline, ppu->cycle_counter, ppu->frames, SystemGetCpu()->cycles);
+            break;
+        case OAM_ADDR:
+            ppu->oam1_addr = data;
+            break;
+        case OAM_DATA:
+        {
+            if (ppu->rendering && (ppu->scanline < 240 || ppu->scanline == 261))
+            {
+                ppu->sprite_eval.done |= ppu->oam1_addr > 251;
+                ppu->oam1_addr += 4;
+                ppu->oam1_addr &= 0xFC;
+            }
+            else
+            {
+                ppu->oam1[ppu->oam1_addr >> 2].raw[ppu->oam1_addr & 3] = data;
+                ppu->sprite_eval.done |= ppu->oam1_addr == 255;
+                ++ppu->oam1_addr;
+            }
+            break;
+        }
+        case PPU_SCROLL:
+            PpuWriteScroll(ppu, data);
+            break;
+        case PPU_ADDR:
+            PpuWriteAddrReg(ppu, data);
+            break;
+        case PPU_DATA:
+            PpuWriteData(ppu, data);
+            break;
+    }
+    ppu->io_bus = data;
+}
+
+void PpuSetNameTable(int nt, int mode)
+{
+    switch (mode)
+    {
+        case 0:
+        case 1:
+            nametables[nt] = &vram[mode * 0x400];
+            break;
+        case 2:
+            nametables[nt] = &mmc5.ext_ram[0];
+            break;
+        default:
+            DEBUG_LOG("Unsupported NT mode! %d\n", mode);
+            break;
+    }
+}
+
+// Set the arrangement mode for the nametables
+// Note that arrangement is the inverse of mirroring
+void PpuSetArrangement(NameTableArrangement mode, int page)
+{
+    switch (mode)
+    {
+        case NAMETABLE_VERTICAL:
+            nametables[0] = &vram[0x000];  // NT0 (0x2000)
+            nametables[1] = &vram[0x000];  // NT0 (Mirrored at 0x2400)
+            nametables[2] = &vram[0x400];  // NT1 (0x2800)
+            nametables[3] = &vram[0x400];  // NT1 (Mirrored at 0x2C00)
+            break;
+        case NAMETABLE_HORIZONTAL:
+            nametables[0] = &vram[0x000];  // NT0 (0x2000)
+            nametables[1] = &vram[0x400];  // NT1 (0x2400)
+            nametables[2] = &vram[0x000];  // NT0 (Mirrored at 0x2800)
+            nametables[3] = &vram[0x400];  // NT1 (Mirrored at 0x2C00)
+            break;
+        case NAMETABLE_SINGLE_SCREEN:
+            nametables[0] = &vram[0x400 * page];
+            nametables[1] = &vram[0x400 * page];
+            nametables[2] = &vram[0x400 * page];
+            nametables[3] = &vram[0x400 * page];
+            break;
+        case NAMETABLE_FOUR_SCREEN:
+            nametables[0] = &vram[0x000];  // NT0 (0x2000)
+            nametables[1] = &vram[0x400];  // NT1 (0x2400)
+            nametables[2] = &mmc5.ext_ram[0x000];  // NT0 (0x2800)
+            nametables[3] = &mmc5.ext_ram[0x400];  // NT1 (0x2C00)
+            break;
+        default:
+            printf("Unimplemented Nametable arrangement mode %d detected!\n", mode);
+            break;
+    }
+}
+
+static inline void PpuApplyColorEmphasis(Color *src_color, Color *dst_color, const int emph_bits, uint8_t color_index)
+{
+    *dst_color = *src_color;
+    if (color_index == 0xE || color_index == 0xF)
+        return;
+
+    switch (emph_bits)
+    {
+        case 0x1:
+            dst_color->b *= COLOR_ATTENUATION;
+            dst_color->g *= COLOR_ATTENUATION;
+            break;
+        case 0x2:
+            dst_color->b *= COLOR_ATTENUATION;
+            dst_color->r *= COLOR_ATTENUATION;
+            break;
+        case 0x3:
+            dst_color->b *= COLOR_ATTENUATION;
+            dst_color->g *= COLOR_ATTENUATION;
+            dst_color->b *= COLOR_ATTENUATION;
+            dst_color->r *= COLOR_ATTENUATION;
+            break;
+        case 0x4:
+            dst_color->g *= COLOR_ATTENUATION;
+            dst_color->r *= COLOR_ATTENUATION;
+            break;
+        case 0x5:
+            dst_color->b *= COLOR_ATTENUATION;
+            dst_color->g *= COLOR_ATTENUATION;
+            dst_color->g *= COLOR_ATTENUATION;
+            dst_color->r *= COLOR_ATTENUATION;
+            break;
+        case 0x6:
+            dst_color->b *= COLOR_ATTENUATION;
+            dst_color->r *= COLOR_ATTENUATION;
+            dst_color->g *= COLOR_ATTENUATION;
+            dst_color->r *= COLOR_ATTENUATION;
+            break;
+        case 0x7:
+            dst_color->b *= COLOR_ATTENUATION;
+            dst_color->g *= COLOR_ATTENUATION;
+            dst_color->b *= COLOR_ATTENUATION;
+            dst_color->r *= COLOR_ATTENUATION;
+            dst_color->g *= COLOR_ATTENUATION;
+            dst_color->r *= COLOR_ATTENUATION;
+            break;
+    }
+}
+extern uint16_t NesPalette[];
+void PPU_Init(Ppu *ppu, int arrangement, bool warmup,
+#ifdef FP
+              uint16_t **buffers,
+#else
+              uint32_t **buffers,
+#endif
+              const uint32_t buffer_size)
+{
+    memset(ppu, 0, sizeof(*ppu));
+    ppu->arrangement = arrangement;
+    PpuSetArrangement(ppu->arrangement, 0);
+    ppu->rendering = false;
+    ppu->buffers[0] = buffers[0];
+    ppu->buffers[1] = buffers[1];
+    ppu->buffer_size = buffer_size;
+    ppu->ext_input = 0;
+    ppu->copy_t_delay = 2;
+    ppu->warmup = warmup;
+
+#ifdef FP
+    // ĐÃ SỬA: Nếu build cho điện thoại, nạp thẳng mã màu 16-bit từ mảng NesPalette phần cứng
+    for (int i = 0; i < 64; i++)
+    {
+        uint16_t hardware_color = NesPalette[i];
+        for (int j = 0; j < 8; j++)
+        {
+            color_lut[i][j] = hardware_color;
+        }
+    }
+#else
+    
+    for (int i = 0; i < 64; i++)
+    {
+        Color color = sys_palette[i];
+        color_lut[i][0] = (uint32_t)((color.r << 24) | (color.g << 16) | (color.b << 8) | 255);
+
+        for (int j = 1; j < 8; j++)
+        {
+            Color color_emph;
+            PpuApplyColorEmphasis(&color, &color_emph, j, i);
+            color_lut[i][j] = (uint32_t)((color_emph.r << 24) | (color_emph.g << 16) | (color_emph.b << 8) | 255);
+        }
+    }
+#endif
+}
+
+#ifdef FP
+static inline void DrawPixel(uint16_t *buffer, int x, int y, const uint16_t packed_color)
+#else
+static inline void DrawPixel(uint32_t *buffer, int x, int y, const uint32_t packed_color)
+#endif
+{
+    if (__builtin_expect(x < 0 || y < 0 || x >= SCREEN_WIDTH || y >= SCREEN_HEIGHT, 0))
+        return;
+
+    buffer[y * SCREEN_WIDTH + x] = packed_color;
+}
+
+static inline void PpuResetOAM2(Ppu *ppu)
+{
+    ppu->oam_buffer = 0xFF;
+    memset(ppu->oam2, 0xFF, sizeof(ppu->oam2));
+    ppu->sprite_eval.done = false;
+    ppu->sprite_eval.oam2_overflow = false;
+    ppu->oam2_addr = 0;
+    ppu->sprite_eval.timer = 0;
+    ppu->sprite_in_range = false;
+}
+
+static inline void PpuSpriteRangeCheck(Ppu *ppu, const uint8_t sprite_byte)
+{
+    const int y_offset = ((uint8_t)ppu->scanline - sprite_byte);
+    ppu->sprite_in_range = y_offset >= 0 && y_offset < (8 << ppu->ctrl.sprite_size);
+    ppu->sprite_y_offset = y_offset & 0xF;
+}
+
+static inline void PpuSpritesEval(Ppu *ppu)
+{
+    if (ppu->cycle_counter & 1)
+    {
+        ppu->oam_buffer = ppu->oam1[ppu->oam1_addr >> 2].raw[ppu->oam1_addr & 3];
+    }
+    else
+    {
+        PpuSpriteRangeCheck(ppu, ppu->oam_buffer);
+        if (ppu->sprite_eval.done || ppu->sprite_eval.oam2_overflow)
+        {
+            ppu->oam_buffer = ppu->oam2[ppu->oam2_addr >> 2].raw[ppu->oam2_addr & 3];
+        }
+        else
+        {
+            ppu->oam2[ppu->oam2_addr >> 2].raw[ppu->oam2_addr & 3] = ppu->oam_buffer;
+        }
+
+        // Are we doing a +4 increment or a +1 increment?
+        if ((ppu->sprite_in_range || ppu->sprite_eval.timer) && !ppu->sprite_eval.done)
+        {
+            if (ppu->found_sprites == 8 && ppu->sprite_in_range)
+            {
+                ppu->status.sprite_overflow = 1;
+                ppu->sprite_eval.done = true;
+            }
+
+            ppu->sprite0_loaded |= ppu->cycle_counter == 66;
+            ppu->sprite_eval.done |= ppu->oam1_addr == 255;
+            ppu->sprite_eval.oam2_overflow |= ppu->oam2_addr == 31;
+
+            ++ppu->oam1_addr;
+            ppu->oam2_addr = (ppu->oam2_addr + 1) & 0x1F;
+            ++ppu->sprite_eval.timer;
+            ppu->sprite_eval.timer &= 3;
+            if (!ppu->sprite_eval.timer)
+                ++ppu->found_sprites;
+        }
+        else
+        {
+            ppu->sprite_eval.done |= ppu->oam1_addr > 251;
+            ppu->oam1_addr += 4;
+            ppu->oam1_addr &= 0xFC;
+        }
+    }
+}
+
+static inline void PpuSpritesEvalFast(Ppu *ppu)
+{
+    ppu->sprite0_loaded = false;
+
+    for (int i = 0; i < 64; i++)
+    {
+        Sprite curr_sprite = ppu->oam1[i];
+        PpuSpriteRangeCheck(ppu, curr_sprite.y);
+
+        if (!ppu->sprite_in_range)
+            continue;
+
+        if (ppu->found_sprites == 8)
+        {
+            ppu->status.sprite_overflow = true;
+            break;
+        }
+
+        ppu->sprite0_loaded |= !i;
+        ppu->oam2[ppu->found_sprites++] = curr_sprite;
+    }
+}
+
+static inline void PpuUpdatePAR(Ppu *ppu, PictureAddrMode mode, Sprite *curr_sprite)
+{
+    switch (mode)
+    {
+        case PICTURE_MODE_BG:
+        {
+            ppu->par.line = ppu->v.scrolling.fine_y;
+            ppu->par.bitplane = 0;
+            ppu->par.tile_index = ppu->tile_id;
+            ppu->par.bank = ppu->ctrl.bg_pat_table_addr;
+            break;
+        }
+
+        case PICTURE_MODE_SPRITES_8x8:
+        {
+            PpuSpriteRangeCheck(ppu, curr_sprite->y);
+            const int y_offset = ppu->sprite_y_offset;
+
+            ppu->par.line = (curr_sprite->attribs.vert_flip ? ~y_offset : y_offset);
+            ppu->par.bitplane = 0;
+            ppu->par.tile_index = curr_sprite->tile_id;
+            ppu->par.bank = ppu->ctrl.sprite_pat_table_addr;
+            break;
+        }
+
+        case PICTURE_MODE_SPRITES_8x16:
+        {
+            PpuSpriteRangeCheck(ppu, curr_sprite->y);
+            const int y_offset = ppu->sprite_y_offset;
+            uint8_t output = (curr_sprite->attribs.vert_flip ? ~y_offset : y_offset);
+
+            ppu->par.line = output;
+            ppu->par.bitplane = 0;
+            ppu->par.ext_sprite.tile_index_bit0 = output >> 3;
+            ppu->par.ext_sprite.tile_index = curr_sprite->tile_id >> 1;
+            ppu->par.bank = curr_sprite->tile_id;
+            break;
+        }
+    }
+}
+
+static inline void PpuHandleSprite0Hit(Ppu *ppu, const int xpos, const int fifo_lane, const uint8_t bg_pixel, const uint8_t sprite_pixel)
+{
+    if (!bg_pixel || !sprite_pixel)
+        return;
+
+    if (fifo_lane != 0 || !ppu->prev_sprite0_loaded || ppu->status.sprite_hit)
+        return;
+
+    ppu->status.sprite_hit = xpos != 255;
+}
+
+static inline void PpuRenderSpritePixel(Ppu *ppu, const int xpos, const uint8_t bg_pixel)
+{
+    const bool valid_xpos = (ppu->mask.show_sprites_left_corner || xpos > 7);
+
+    uint8_t sprite_pixel = 0;
+
+    for (int i = 0; i < ppu->prev_found_sprites; i++)
+    {
+        SpriteFifo *fifo_lane = &ppu->fifo[i];
+        if (fifo_lane->x > 0)
+            --fifo_lane->x;
+        else if (ppu->rendering)
+        {
+            if (!sprite_pixel && valid_xpos && ppu->mask.sprites_rendering)
+            {
+                const uint8_t bit = !fifo_lane->attribs.horz_flip * 7;
+                uint8_t spixel_low  = (fifo_lane->shift.low >> bit) & 1;
+                uint8_t spixel_high = (fifo_lane->shift.high >> bit) & 1;
+                sprite_pixel = (spixel_high << 1) | spixel_low;
+
+                PpuHandleSprite0Hit(ppu, xpos, i, bg_pixel, sprite_pixel);
+
+                if (sprite_pixel && (!fifo_lane->attribs.priority || !bg_pixel))
+                {
+                    const uint32_t color = GetSpriteColor(ppu, fifo_lane->attribs.palette, sprite_pixel);
+                    DrawPixel(ppu->buffers[0], xpos, ppu->scanline, color);
+                }
+            }
+
+            if (fifo_lane->attribs.horz_flip)
+            {
+                fifo_lane->shift.low >>= 1;
+                fifo_lane->shift.high >>= 1;
+            }
+            else
+            {
+                fifo_lane->shift.low <<= 1;
+                fifo_lane->shift.high <<= 1;
+            }
+        }
+    }
+}
+
+static inline void PpuShiftRegsUpdate(Ppu *ppu)
+{
+    ppu->bg_shift_low.raw <<= 1;
+    ppu->bg_shift_high.raw <<= 1;
+    ppu->attrib_shift_low.raw <<= 1;
+    ppu->attrib_shift_high.raw <<= 1;
+}
+
+static inline void PpuFetchShifters(Ppu *ppu)
+{
+    ppu->bg_shift_low.low = ppu->bg_lsb;
+    ppu->bg_shift_high.low = ppu->bg_msb;
+
+    const bool latch_low = ppu->attrib_data & 1;
+    const bool latch_high = (ppu->attrib_data >> 1) & 1;
+
+    ppu->attrib_shift_low.low = latch_low * 0xFF;
+    ppu->attrib_shift_high.low = latch_high * 0xFF;
+}
+
+#ifdef FAST_BG_FETCH
+static inline void PpuFetchBG(Ppu *ppu)
+{
+    PpuShiftRegsUpdate(ppu);
+
+    const int cycle_index = (ppu->cycle_counter - 1) & 7;
+
+    if (!cycle_index)
+    {
+        PpuFetchShifters(ppu);
+        PpuUpdateBus(ppu, PpuGetNTAddr(ppu));
+        ppu->tile_id = ExtNameTableRead(ppu, ppu->bus_addr);
+        PpuUpdatePAR(ppu, PICTURE_MODE_BG, NULL);
+    }
+    else if (cycle_index == 7)
+    {
+        uint8_t attrib_data = ExtNameTableRead(ppu, PpuGetAttribAddr(ppu));
+        uint8_t shift = ((ppu->v.scrolling.coarse_y & 2) << 1) | (ppu->v.scrolling.coarse_x & 2);
+        ppu->attrib_data = (attrib_data >> shift) & 0x3;
+        // Bitplane 0
+        ppu->bg_lsb = PpuReadChr(ppu, ppu->par.raw);
+        // Bitplane 1
+        ppu->par.bitplane = 1;
+        ppu->bg_msb = PpuReadChr(ppu, ppu->par.raw);
+        PpuIncrementScrollX(ppu);
+    }
+}
+#else
+static inline void PpuFetchBG(Ppu *ppu)
+{
+    PpuShiftRegsUpdate(ppu);
+
+    switch ((ppu->cycle_counter - 1) & 7)
+    {
+        case 0:
+        {
+            PpuFetchShifters(ppu);
+            PpuUpdateBus(ppu, PpuGetNTAddr(ppu));
+            break;
+        }
+
+        case 1:
+        {
+            ppu->tile_id = ExtNameTableRead(ppu, ppu->bus_addr);
+            break;
+        }
+
+        case 2:
+        {
+            PpuUpdatePAR(ppu, PICTURE_MODE_BG, NULL);
+            PpuUpdateBus(ppu, PpuGetAttribAddr(ppu));
+            break;
+        }
+
+        case 3:
+        {
+            uint8_t attrib_data = ExtNameTableRead(ppu, ppu->bus_addr);
+            uint8_t shift = ((ppu->v.scrolling.coarse_y & 2) << 1) | (ppu->v.scrolling.coarse_x & 2);
+            ppu->attrib_data = (attrib_data >> shift) & 0x3;
+            break;
+        }
+
+        case 5:
+        {
+            // Bitplane 0
+            ppu->bg_lsb = PpuReadChr(ppu, ppu->par.raw);
+            break;
+        }
+
+        case 7:
+        {
+            ppu->par.bitplane = 1;
+            // Bitplane 1
+            ppu->bg_msb = PpuReadChr(ppu, ppu->par.raw);
+            PpuIncrementScrollX(ppu);
+            break;
+        }
+    }
+}
+#endif
+
+static inline void PpuFetchSprite(Ppu *ppu, int sprite_num)
+{
+    Sprite *curr_sprite = &ppu->oam2[sprite_num];
+    const int effective_cycle = ppu->cycle_counter - 257;
+
+    switch (effective_cycle & 7)
+    {
+        case 0:
+        {
+            PpuUpdateBus(ppu, PpuGetNTAddr(ppu));
+            break;
+        }
+        case 1:
+        {
+            ppu->tile_id = ExtNameTableRead(ppu, ppu->bus_addr);
+            break;
+        }
+        case 2:
+        {
+            PpuUpdatePAR(ppu, PICTURE_MODE_SPRITES_8x8 + ppu->ctrl.sprite_size, curr_sprite);
+            PpuUpdateBus(ppu, PpuGetNTAddr(ppu));
+            break;
+        }
+        case 3:
+        {
+            ExtNameTableRead(ppu, ppu->bus_addr);
+            ppu->fifo[sprite_num].attribs = curr_sprite->attribs;
+            ppu->fifo[sprite_num].x = curr_sprite->x;
+            break;
+        }
+        case 5:
+        {
+            // Bitplane 0
+            ppu->fifo[sprite_num].shift.low = PpuReadChr(ppu, ppu->par.raw) * ppu->sprite_in_range;
+            break;
+        }
+        case 7:
+        {
+            // Bitplane 1
+            ppu->par.bitplane = 1;
+            ppu->fifo[sprite_num].shift.high = PpuReadChr(ppu, ppu->par.raw) * ppu->sprite_in_range;
+            break;
+        }
+    }
+}
+
+static inline void PpuFetchSpritesFast(Ppu *ppu)
+{
+    const uint16_t nt_addr = PpuGetNTAddr(ppu);
+    for (int i = 0; i < 8; i++)
+    {
+        Sprite *curr_sprite = &ppu->oam2[i];
+        ppu->tile_id = ExtNameTableRead(ppu, nt_addr);
+        PpuUpdatePAR(ppu, PICTURE_MODE_SPRITES_8x8 + ppu->ctrl.sprite_size, curr_sprite);
+
+        ExtNameTableRead(ppu, nt_addr);
+        ppu->fifo[i].attribs = curr_sprite->attribs;
+        ppu->fifo[i].x = curr_sprite->x;
+
+        // Bitplane 0
+        ppu->fifo[i].shift.low = PpuReadChr(ppu, ppu->par.raw);
+        // Bitplane 1
+        ppu->par.bitplane = 1;
+        ppu->fifo[i].shift.high = PpuReadChr(ppu, ppu->par.raw);
+    }
+}
+
+static inline void PpuVramAddrUpdate(Ppu *ppu)
+{
+    if (ppu->copy_t)
+    {
+        if (!(ppu->copy_t_delay--))
+        {
+            PpuCopyTtoV(ppu);
+        }
+    }
+
+    // VRAM addr (V) increments are delayed one dot/cycle for $2007(PPUDATA)
+    if (ppu->vram_update)
+    {
+        if (ppu->rendering && (ppu->scanline < 240 || ppu->scanline == 261))
+        {
+            PpuIncrementScrollX(ppu);
+            PpuIncrementScrollY(ppu);
+        }
+        else
+        {
+            const uint8_t prev_a12 = ppu->v.raw_bits.bit12;
+            ppu->v.raw += ppu->ctrl.vram_addr_inc ? 32 : 1;
+            if (~prev_a12 & ppu->v.raw_bits.bit12)
+                PpuClockMMC3();
+        }
+
+        ppu->vram_update = false;
+    }
+}
+
+
+static inline void PpuRenderPixel(Ppu *ppu)
+{
+    if (!ppu->cycle_counter || (ppu->scanline == 261 || ppu->cycle_counter > 256))
+        return;
+
+    // The effective x positon is the current cycle - 1, since cycle 0 is a dummy cycle
+    const int xpos = ppu->cycle_counter - 1;
+
+    // Fine X tells us which bit from the shift regs we want to use
+    const int bit = 15 - ppu->x;
+
+    uint8_t bg_pixel_low  = (ppu->bg_shift_low.raw >> bit) & 1;
+    uint8_t bg_pixel_high = (ppu->bg_shift_high.raw >> bit) & 1;
+    uint8_t bg_palette_low  = (ppu->attrib_shift_low.raw >> bit) & 1;
+    uint8_t bg_palette_high = (ppu->attrib_shift_high.raw >> bit) & 1;
+
+    const bool draw_bg = ppu->rendering && ppu->mask.bg_rendering && (ppu->mask.show_bg_left_corner || xpos > 7);
+
+    const uint8_t bg_pixel = ((bg_pixel_high << 1) | bg_pixel_low) * draw_bg;
+    const uint8_t bg_palette = (bg_palette_high << 1) | bg_palette_low;
+
+    const uint32_t color = GetBGColor(ppu, bg_palette, bg_pixel);
+    DrawPixel(ppu->buffers[0], xpos, ppu->scanline, color);
+
+    PpuRenderSpritePixel(ppu, xpos, bg_pixel);
+}
+
+void PpuScheduleRendererUpdate(Ppu *ppu)
+{
+    ppu->renderer_update = true;
+}
+
+static inline void PpuUpdateRenderingState(Ppu *ppu)
+{
+    if (!ppu->renderer_update)
+        return;
+
+    ppu->rendering = ppu->mask.bg_rendering | ppu->mask.sprites_rendering;
+    ppu->renderer_update = false;
+}
+
+static inline void PpuCycleUpdate(Ppu *ppu)
+{
+    ppu->cycle_counter = (ppu->cycle_counter + 1) % 341;
+
+    if (!ppu->cycle_counter)
+    {
+        // 1 scanline = 341 PPU cycles
+        ppu->scanline = (ppu->scanline + 1) % 262;
+    }
+
+    if (!ppu->cycle_counter && !ppu->scanline)
+    {
+        ppu->frame_finished = true;
+        // Clear io bus at the end of each frame
+        // (Actually random on real hardware and can be up to a 30 frame delay)
+        ppu->io_bus = 0;
+        ++ppu->frames;
+    }
+}
+
+void PPU_Tick(Ppu *ppu)
+{
+    if (ppu->scanline < 240 || ppu->scanline == 261)
+    {
+        if (!ppu->cycle_counter && !ppu->skipped_cycle)
+        {
+            PpuUpdatePAR(ppu, PICTURE_MODE_BG, NULL);
+            PpuUpdateBus(ppu, ppu->par.raw);
+        }
+
+        ppu->skipped_cycle = false;
+
+        if (ppu->rendering)
+        {
+            if (ppu->cycle_counter && (ppu->cycle_counter <= 256 || (ppu->cycle_counter >= 321 && ppu->cycle_counter <= 336)))
+                PpuFetchBG(ppu);
+
+            if (ppu->cycle_counter == 64 && ppu->scanline != 261)
+            {
+                PpuResetOAM2(ppu);
+            }
+
+#ifdef FAST_SPRITE_EVAL
+            if (ppu->cycle_counter == 256 && ppu->scanline != 261)
+            {
+                PpuSpritesEvalFast(ppu);
+            }
+#else
+            if (ppu->cycle_counter > 64 && ppu->cycle_counter < 257 && ppu->scanline != 261)
+            {
+                PpuSpritesEval(ppu);
+            }
+#endif
+
+            if (ppu->cycle_counter == 256)
+            {
+                ppu->oam2_addr = 0;
+                PpuIncrementScrollY(ppu);
+            }
+
+            if (ppu->cycle_counter == 257)
+            {
+                // Emulator specific, I need these to track the previously done oam eval that finished on dot 256
+                ppu->prev_found_sprites = ppu->found_sprites;
+                ppu->prev_sprite0_loaded = ppu->sprite0_loaded;
+                ppu->found_sprites = 0;
+                ppu->sprite0_loaded = false;
+
+                ppu->v.scrolling.coarse_x = ppu->t.scrolling.coarse_x;
+                ppu->v.raw_bits.bit10 = ppu->t.raw_bits.bit10;
+            }
+
+            if (ppu->scanline == 261 && (ppu->cycle_counter >= 280 && ppu->cycle_counter < 305))
+            {
+                // reset scroll
+                ppu->v.scrolling.coarse_y = ppu->t.scrolling.coarse_y;
+                ppu->v.scrolling.fine_y = ppu->t.scrolling.fine_y;
+                ppu->v.raw_bits.bit11 = ppu->t.raw_bits.bit11;
+            }
+
+#ifdef FAST_SPRITE_EVAL
+            if (ppu->cycle_counter == 260)
+            {
+                ppu->oam1_addr = 0;
+                PpuFetchSpritesFast(ppu);
+            }
+#else
+            if (ppu->cycle_counter >= 257 && ppu->cycle_counter <= 320)
+            {
+                ppu->oam1_addr = 0;
+                PpuFetchSprite(ppu, (ppu->cycle_counter - 257) >> 3);
+            }
+#endif
+            if (ppu->cycle_counter == 337 || ppu->cycle_counter == 339)
+            {
+                PpuUpdateBus(ppu, PpuGetNTAddr(ppu));
+                uint8_t nt_fetch = ExtNameTableRead(ppu, ppu->bus_addr);
+                if (ppu->cycle_counter == 337)
+                    ppu->tile_id = nt_fetch;
+                if (ppu->cycle_counter == 339 && ppu->frames & 1 && ppu->scanline == 261)
+                {
+                    ++ppu->cycle_counter;
+                    ppu->skipped_cycle = true;
+                }
+            }
+        }
+
+        PpuRenderPixel(ppu);
+    }
+
+    if (ppu->scanline == 241 && ppu->cycle_counter == 1)
+    {
+        //printf("PPU v addr: 0x%04X\n", ppu->v.raw);
+        ppu->bus_addr = ppu->v.raw & 0x3FFF;
+        // Vblank starts at scanline 241
+        ppu->status.vblank = 1;
+        // Copy the finished image in the back buffer to the front buffer
+#ifdef FP
+        memcpy((void*)ppu->buffers[1], (void*)ppu->buffers[0], ppu->buffer_size);
+#else
+        memcpy(ppu->buffers[1], ppu->buffers[0], ppu->buffer_size);
+#endif
+    }
+
+    // Clear VBlank flag at scanline 261, dot 1
+    if (ppu->scanline == 261 && ppu->cycle_counter == 1)
+    {
+        ppu->status.vblank = 0;
+        ppu->status.sprite_hit = 0;
+        ppu->status.sprite_overflow = 0;
+    }
+
+    // Reading PpuStatus causes vblank flag to be cleared again
+    if (ppu->clear_vblank)
+    {
+        ppu->status.vblank = 0;
+        ppu->clear_vblank = false;
+    }
+
+    PpuUpdateRenderingState(ppu);
+    PpuVramAddrUpdate(ppu);
+    PpuCycleUpdate(ppu);
+}
+
+void PPU_Reset(Ppu *ppu)
+{
+    ppu->cycle_counter = 0;
+    ppu->frames = 0;
+    ppu->frame_finished = 0;
+    ppu->w = false;
+    ppu->ctrl.raw = 0;
+    ppu->mask.raw = 0;
+    ppu->buffered_data = 0;
+}

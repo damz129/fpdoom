@@ -1,0 +1,48 @@
+#ifndef NONES_H
+#define NONES_H
+
+//#define SCREEN_WIDTH 340
+//#define SCREEN_HEIGHT 260
+#define SCREEN_WIDTH 256
+#define SCREEN_WIDTH_EDGE 37
+#define SCREEN_HEIGHT 240
+#define FRAMERATE 60
+#define FRAMECAP 500
+//#define FRAMERATE 60.098477556112265
+#define FRAME_TIME_MS (1000.0 / FRAMERATE)
+#define FRAME_CAP_MS (1000.0 / FRAMECAP)
+#define FRAME_TIME_NS (1000000000.0 / FRAMERATE)
+#define FRAME_CAP_NS (1000000000.0 / FRAMECAP)
+
+typedef struct
+{
+    char cpu_msg[128];
+    char fps_msg[8];
+    uint64_t frames;
+    uint64_t timer;
+} NonesInfo;
+
+typedef struct {
+    bool buttons[16];
+    Arena *arena;
+    System *system;
+    SDL_Window *window;
+    SDL_Renderer *renderer;
+    SDL_Texture *texture;
+    SDL_Gamepad *gamepad1;
+    SDL_Gamepad *gamepad2;
+    SDL_JoystickID *gamepads;
+    SDL_Joystick *joystick1;
+    SDL_Joystick *joystick2;
+    int num_gamepads;
+    int aspect_ratio;
+    bool debug_info;
+    bool fullscreen;
+    bool quit;
+} Nones;
+
+void NonesRun(Nones *nones, bool ppu_warmup, bool fullscreen, const int aspect_ratio, bool swap_duty_cycles,
+              const int sample_rate, const char *path, const char *audio_driver);
+void NonesPutSoundData(int16_t *buffer, const int buffer_size);
+
+#endif
