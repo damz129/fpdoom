@@ -285,7 +285,7 @@ int main(int argc, char **argv) {
 	printf("[NoNES Debug] Main loop start...\n");
 	while (1) {
 		PadInputStateUpdate(&nones);
-		SystemRun(nones.system);
+		SystemRun(nones.system, false);
 		sys_wait_refresh();
 		
 		unsigned crop = sys_data.user[0];
