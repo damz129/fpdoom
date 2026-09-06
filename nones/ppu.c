@@ -136,7 +136,7 @@ static inline uint32_t GetBGColor(Ppu *ppu, const uint8_t palette_index, const u
     return color_lut[color_index & 0x3F][ppu->mask.raw >> 5];
 }
 
-ifdef FP
+#ifdef FP
 static inline uint16_t GetSpriteColor(Ppu *ppu, const uint8_t palette_index, const uint8_t pixel)
 #else
 static inline uint32_t GetSpriteColor(Ppu *ppu, const uint8_t palette_index, const uint8_t pixel)
