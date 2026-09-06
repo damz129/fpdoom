@@ -244,16 +244,16 @@ int main(int argc, char **argv) {
 
 	Nones nones;
 	memset(&nones, 0, sizeof(Nones));
-	nones.arena = ArenaCreate(1024 * 1024 * 3);
+	nones.arena = ArenaCreate(1024 * 1024 * 2 + 1024 * 200);
 	nones.system = SystemCreate(nones.arena);
 
 	if (CartLoad(nones.arena, nones.system->cart, szRomName)) {
 		ArenaDestroy(nones.arena);
-		return 1;
+		sys_exit();
 	}
 
-	uint16_t *buffers[2];
 	const uint32_t buffer_size = (SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint16_t));
+	uint16_t **buffers = ArenaPush(nones.arena, sizeof(uint16_t*) * 2);
 	buffers[0] = ArenaPush(nones.arena, buffer_size);
 	buffers[1] = ArenaPush(nones.arena, buffer_size);
 
@@ -274,7 +274,7 @@ int main(int argc, char **argv) {
 		sys_wait_refresh();
 		unsigned crop = sys_data.user[0]; 
 		unsigned h = SCREEN_HEIGHT - crop * 2;
-		uint16_t *src_start = (uint16_t*)(nones.system->ppu->buffers) + (crop * SCREEN_WIDTH);
+		uint16_t *src_start = nones.system->ppu->buffers[1] + (crop * SCREEN_WIDTH);
 		scr_update_fn[sys_data.scaler](src_start, framebuf, h);
 		sys_start_refresh();
 		wait_frame();
