@@ -260,7 +260,7 @@ int main(int argc, char **argv) {
 	}
 
 	SystemShutdown(nones.system);
-	sys_exit(0);
+	sys_exit();
 	if (framebuf_mem) free(framebuf_mem);
 	ArenaDestroy(nones.arena);
 	return 0;
