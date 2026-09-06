@@ -440,7 +440,7 @@ void SystemShutdown(System *system)
 }
 
 #ifdef DISABLE_APU
-void ApuWriteReg(void *apu, uint16_t addr, uint8_t data) {
+void ApuWriteReg(Apu *apu, const uint16_t addr, const uint8_t data) {
     (void)apu;
     (void)addr;
     (void)data;
