@@ -242,7 +242,7 @@ int main(int argc, char **argv) {
 	sys_start();
 	keytrn_init();
 
-	SystemInit(nones.system, nones.arena, false, false, 0, buffers, buffer_size);
+	SystemInit(nones.system, nones.arena, false, false, 0, (void**)buffers, buffer_size);
 
 	timerlast = sys_timer_ms();
 	timertick = 0; timertick_ms = 0;
@@ -260,7 +260,7 @@ int main(int argc, char **argv) {
 	}
 
 	SystemShutdown(nones.system);
-	sys_end();
+	sys_exit();
 	if (framebuf_mem) free(framebuf_mem);
 	ArenaDestroy(nones.arena);
 	return 0;
