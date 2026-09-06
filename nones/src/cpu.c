@@ -15,6 +15,13 @@
 #include "mapper.h"
 #include "system.h"
 #include "utils.h"
+#ifdef FP
+#include "syscode.h"
+#ifndef EXIT_FAILURE
+#define EXIT_FAILURE 1
+#endif
+#define exit(code) sys_exit()
+#endif
 
 
 static uint8_t CpuRead8(const uint16_t addr)
