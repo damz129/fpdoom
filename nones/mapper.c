@@ -94,7 +94,6 @@ static void MapperWriteApuReg(Cart *cart, const uint32_t addr, const uint8_t dat
 
     if (addr == 0x4014)
     {
-        DEBUG_LOG("Requested OAM DMA 0x%04X\n", addr);
         system->oam_dma_triggered = true;
         system->dma_pending = true;
     }
@@ -732,8 +731,6 @@ static void Mmc1RegWrite(Cart *cart, const uint32_t addr, const uint8_t data)
 
     if ((data >> 7) & 1)
     {
-        DEBUG_LOG("Mmc1 reset request from addr: 0x%04X\n", addr);
-
         // Mmc1 reset
         mmc1.shift.raw = 0x10;
         mmc1.shift_count = 0;
@@ -764,19 +761,15 @@ static void Mmc1RegWrite(Cart *cart, const uint32_t addr, const uint8_t data)
             Mmc1SetArrangement(mmc1.control.name_table_setup);
             //printf("Set nametable mode to: %d\n", mmc1.control.name_table_setup);
             //printf("Set prg rom bank mode to: %d\n", mmc1.control.prg_rom_bank_mode);
-            DEBUG_LOG("Set chr bank mode to %d\n", mmc1.control.chr_rom_bank_mode);
             break;
         case 1:
             mmc1.chr_bank0 = reg;
-            DEBUG_LOG("Set chr rom bank0 index to %d\n", mmc1.chr_bank0);
             break;
         case 2:
             mmc1.chr_bank1 = reg;
-            DEBUG_LOG("Set chr rom bank1 index to %d\n", mmc1.chr_bank1);
             break;
         case 3:
             mmc1.prg_bank.raw = reg;
-            DEBUG_LOG("Set prg rom bank index to %d\n", mmc1.prg_bank.select);
             break;
     }
     mmc1.shift.raw = 0x10;
@@ -904,7 +897,6 @@ static void UxRomRegWrite(Cart *cart, const uint32_t addr, const uint8_t data)
     UNUSED(addr);
 
     ux_rom.bank = data;
-    DEBUG_LOG("Set prg rom bank index to %d\n", data & 0x7);
 }
 
 static void CamericaRomRegWrite(Cart *cart, const uint32_t addr, const uint8_t data)
