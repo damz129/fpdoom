@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
 		PadInputStateUpdate(&nones);
 		SystemRun(nones.system, nones.debug_info);
 		sys_wait_refresh();
-		unsigned crop = sys_data.user[0];
+		unsigned crop = sys_data.user; 
 		unsigned h = SCREEN_HEIGHT - crop * 2;
 		uint16_t *src_start = (uint16_t*)(nones.system->ppu->buffers) + (crop * SCREEN_WIDTH);
 		scr_update_fn[sys_data.scaler](src_start, framebuf, h);
