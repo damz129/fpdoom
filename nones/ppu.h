@@ -342,7 +342,13 @@ typedef struct
     uint8_t io_bus;
 } Ppu;
 
-void PPU_Init(Ppu *ppu, int arrangement, bool warmup, uint32_t **buffers, uint32_t buffer_size);
+void PPU_Init(Ppu *ppu, int arrangement, bool warmup,
+#ifdef FP
+              uint16_t **buffers,
+#else
+              uint32_t **buffers,
+#endif
+              uint32_t buffer_size);
 void PPU_Tick(Ppu *ppu);
 void PPU_Reset(Ppu *ppu);
 void PpuScheduleRendererUpdate(Ppu *ppu);
