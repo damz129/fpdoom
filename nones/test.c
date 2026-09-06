@@ -283,14 +283,14 @@ int main(int argc, char **argv) {
 	timertick = 0; timertick_ms = 0;
 
 	printf("[NoNES Debug] Main loop start...\n");
-	while (!nones.quit) {
+	while (1) {
 		PadInputStateUpdate(&nones);
-		SystemRun(nones.system, nones.debug_info);
+		SystemRun(nones.system);
 		sys_wait_refresh();
 		
 		unsigned crop = sys_data.user[0];
 		unsigned h = SCREEN_HEIGHT - crop * 2;
-		uint16_t *src_start = (uint16_t*)(nones.system->ppu->buffers[1]) + (crop * SCREEN_WIDTH);
+		uint16_t *src_start = ((uint16_t**)nones.system->ppu->buffers)[1] + (crop * SCREEN_WIDTH);
 		
 		scr_update_fn[sys_data.scaler](src_start, framebuf, h);
 		sys_start_refresh();
