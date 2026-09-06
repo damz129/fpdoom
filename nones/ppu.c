@@ -34,6 +34,7 @@ static uint32_t color_lut[64][8];
 //#define FAST_SPRITE_EVAL
 #define FAST_BG_FETCH
 
+#ifndef FP
 static const Color sys_palette[64] =
 {
     {0x66, 0x66, 0x66},
@@ -101,6 +102,7 @@ static const Color sys_palette[64] =
     {0x00, 0x00, 0x00},
     {0x00, 0x00, 0x00}
 };
+#endif
 
 #ifdef FP
 static inline uint16_t GetBGColor(Ppu *ppu, const uint8_t palette_index, const uint8_t pixel)
