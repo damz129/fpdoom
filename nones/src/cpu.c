@@ -1629,7 +1629,11 @@ static void JAM_Instr(Cpu *cpu, AddressingMode addr_mode, bool page_cycle)
     UNUSED(page_cycle);
     
     printf("\nJAM opcode: 0x%02X at PC: 0x%04X\n", CpuRead8(cpu->pc), cpu->pc);
-    printf("Cycles done: %lu\n", cpu->cycles);
+#ifdef FP
+    printf("Cycles done: %lld\n", (long long)cpu->cycles);
+#else
+    printf("Cycles done: %llu\n", cpu->cycles);
+#endif
     printf("A: 0x%X\nX: 0x%X\nY: 0x%X\nSP: 0x%X\nSR: 0x%X\n\n", cpu->a, cpu->x, cpu->y, cpu->sp, cpu->status.raw);
 
     // Dump Stack for debugging
@@ -1941,7 +1945,11 @@ void CPU_ExecuteInstr(Cpu *cpu, bool debug_info)
     {
         printf("\nUnhandled opcode: 0x%02X at PC: 0x%04X\n", opcode, cpu->pc);
         printf("A: 0x%X\nX: 0x%X\nY: 0x%X\nSP: 0x%X\nSR: 0x%X\n", cpu->a, cpu->x, cpu->y, cpu->sp, cpu->status.raw);
-        printf("Cycles done: %lu\n", cpu->cycles);
+#ifdef FP
+        printf("Cycles done: %lld\n", (long long)cpu->cycles);
+#else
+        printf("Cycles done: %llu\n", cpu->cycles);
+#endif
         exit(EXIT_FAILURE);
     }
 }
