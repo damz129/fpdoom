@@ -10,6 +10,47 @@
 #include "cmd_def.h"
 #include "usbio.h"
 
+char *strtok(char *str, const char *delim) {
+    static char *last = NULL;
+    if (str) last = str;
+    if (!last) return NULL;
+
+    while (*last != '\0') {
+        bool is_delim = false;
+        const char *d = delim;
+        while (*d != '\0') {
+            if (*last == *d) { is_delim = true; break; }
+            d++;
+        }
+        if (!is_delim) break;
+        last++;
+    }
+
+    if (*last == '\0') {
+        last = NULL;
+        return NULL;
+    }
+
+    char *start = last;
+
+    while (*last != '\0') {
+        const char *d = delim;
+        while (*d != '\0') {
+            if (*last == *d) {
+                *last = '\0';
+                last++;
+                return start;
+            }
+            d++;
+        }
+        last++;
+    }
+
+    last = NULL; 
+    return start;
+}
+
+
 static const char *szRomName;
 static char szSaveName[256];
 
