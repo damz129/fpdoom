@@ -26,6 +26,7 @@ typedef struct {
     bool buttons[16];
     Arena *arena;
     System *system;
+#ifndef FP
     SDL_Window *window;
     SDL_Renderer *renderer;
     SDL_Texture *texture;
@@ -35,6 +36,7 @@ typedef struct {
     SDL_Joystick *joystick1;
     SDL_Joystick *joystick2;
     int num_gamepads;
+#endif
     int aspect_ratio;
     bool debug_info;
     bool fullscreen;
