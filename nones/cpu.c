@@ -83,14 +83,18 @@ static void CpuIrqHandler(Cpu *cpu)
         // Load IRQ vector ($FFFE-$FFFF) into PC
         cpu->pc = CpuReadVector(IRQ_VECTOR);
         cpu->irq_pending = false;
+#ifndef FP
         CPU_LOG("Jumping to IRQ vector at 0x%X\n", cpu->pc);
+#endif
     }
     else
     {
         // NMI vector hijacking
         cpu->pc = CpuReadVector(NMI_VECTOR);
         cpu->nmi_pending = false;
+#ifndef FP
         CPU_LOG("Jumping to NMI vector at 0x%X from hijacked IRQ\n", cpu->pc);
+#endif
     }
 }
 
@@ -429,8 +433,9 @@ static void AddWithCarry(Cpu *cpu, uint8_t operand)
     
     // Update status flags
     UPDATE_FLAGS_NZ(cpu->a);
-
+#ifndef FP
     CPU_LOG("ADC/SBC Operand: %x\n", operand);
+#endif
 }
 
 static void BranchHandler(Cpu *cpu, const bool flag_cmp)
@@ -717,14 +722,18 @@ static void BRK_Instr(Cpu *cpu, AddressingMode addr_mode, bool page_cycle)
     {
         // Load IRQ vector ($FFFE-$FFFF) into PC
         cpu->pc = CpuReadVector(0xFFFE);
+#ifndef FP
         CPU_LOG("Jumping to IRQ vector at 0x%X\n", cpu->pc);
+#endif
     }
     else
     {
         // NMI vector hijacking
         cpu->pc = CpuReadVector(0xFFFA);
         cpu->nmi_pending = false;
+#ifndef FP
         CPU_LOG("Jumping to NMI vector at 0x%X from hijacked BRK\n", cpu->pc);
+#endif
     }
 }
 
