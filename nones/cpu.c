@@ -1934,7 +1934,9 @@ void CPU_ExecuteInstr(Cpu *cpu, bool debug_info)
 
     if (handler->InstrFn)
     {
+#ifndef FP
         CPU_LOG("Executing %s (Opcode: 0x%02X) at PC: 0x%04X SP: %X\n", handler->name, opcode, cpu->pc, cpu->sp);
+#endif
         if (debug_info)
             snprintf(cpu->debug_msg, sizeof(cpu->debug_msg), "PC:%04X %s", cpu->pc, handler->name);
 
