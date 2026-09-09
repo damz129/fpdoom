@@ -1,4 +1,4 @@
-name: Build NoNES
+name: Build infoNES
 
 on:
   workflow_dispatch:
@@ -23,7 +23,8 @@ jobs:
         cd pack_reloc
         make
         cd ../infones
-        make -f helper.make all patch TOOLCHAIN=$TOOLCHAIN CC=$CLANG
+        make -f helper.make all patch
+        make all TOOLCHAIN=$TOOLCHAIN CC=$CLANG
     - name: Upload Compiled Payload Binary
       uses: actions/upload-artifact@v6
       with:
