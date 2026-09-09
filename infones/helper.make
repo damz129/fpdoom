@@ -8,7 +8,7 @@ all: InfoNES
 download: $(ZIPDIR)/InfoNES.zip
 
 $(ZIPDIR)/InfoNES.zip:
-	wget -O $@ "https://github.com/jay-kumogata/InfoNES/archive/$(InfoNES_hash).zip"
+	wget -O $@ "https://github.com/damz129/InfoNES/archive/$(InfoNES_hash).zip"
 
 %: $(ZIPDIR)/%.zip
 	name="$@-$($@_hash)"; unzip -q $< $(patsubst %,"$$name/%",$($@_list)) && mv $$name $@
