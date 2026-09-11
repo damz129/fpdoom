@@ -24,7 +24,7 @@ jobs:
         make
         cd ../nones
         make clean
-        make all TOOLCHAIN=$TOOLCHAIN CC=$CLANG
+        make all TOOLCHAIN=$TOOLCHAIN CC=$CLANG T117=1 UMS9117=1
 
     - name: Upload Compiled Payload Binary
       uses: actions/upload-artifact@v6
