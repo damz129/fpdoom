@@ -290,8 +290,21 @@ int main(int argc, char **argv) {
 		
 		unsigned crop = sys_data.user[0];
 		unsigned h = SCREEN_HEIGHT - crop * 2;
-		uint16_t *src_start = ((uint16_t**)nones.system->ppu->buffers)[1] + (crop * SCREEN_WIDTH);
+		uint16_t *src_start = buffers[1] + (crop * SCREEN_WIDTH);
 		
+        #ifdef FP
+#if UMS9117
+		__asm__ __volatile__(
+			"mcr p15, 0, %0, c7, c10, 5\n\t" // Data Memory Barrier (DMB)
+			"dsb\n\t"                        // Data Synchronization Barrier
+			"isb"                            // Instruction Synchronization Barrier
+			: : "r"(src_start) : "memory"
+		);
+#else
+		extern void clean_invalidate_dcache_range(void *start, void *end);
+		clean_invalidate_dcache_range(src_start, src_start + (SCREEN_WIDTH * SCREEN_HEIGHT));
+#endif
+#endif
 		scr_update_fn[sys_data.scaler](src_start, framebuf, h);
 		sys_start_refresh();
 		wait_frame();
