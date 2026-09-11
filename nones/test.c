@@ -292,7 +292,7 @@ int main(int argc, char **argv) {
 		unsigned h = SCREEN_HEIGHT - crop * 2;
 		uint16_t *src_start = buffers[1] + (crop * SCREEN_WIDTH);
 		
-        #ifdef FP
+#ifdef FP
 #if UMS9117
 		__asm__ __volatile__(
 			"mcr p15, 0, %0, c7, c10, 5\n\t" // Data Memory Barrier (DMB)
